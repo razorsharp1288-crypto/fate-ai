@@ -5,12 +5,12 @@ import csv
 import io
 import json
 import re
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from xml.etree import ElementTree as ET
 
-from ..core.exceptions import ValidationError
+from ...core.exceptions import ValidationError
+from .docx import docx_text
+from .pdf import pdf_text
 
 MAX_FILE_BYTES = 25 * 1024 * 1024
 MAX_TEXT_CHARS = 400_000
@@ -36,43 +36,6 @@ _INJECTION_HINTS = re.compile(
     r"you are now|new instructions:|<\s*/?\s*system\s*>|BEGIN SYSTEM PROMPT)", re.I)
 
 
-def _docx_text(data: bytes) -> str:
-    with zipfile.ZipFile(io.BytesIO(data)) as z:
-        info = z.getinfo("word/document.xml")
-        if info.file_size > 50 * 1024 * 1024:
-            raise ValidationError("DOCX content is too large")
-        xml = z.read(info)
-    # ElementTree does not resolve external entities, so this is safe from XXE.
-    root = ET.fromstring(xml)
-    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    paras = []
-    for p in root.iter(f"{ns}p"):
-        parts = []
-        for node in p.iter():
-            if node.tag == f"{ns}t" and node.text:
-                parts.append(node.text)
-            elif node.tag == f"{ns}tab":
-                parts.append("\t")
-            elif node.tag == f"{ns}br":
-                parts.append("\n")
-        paras.append("".join(parts))
-    return "\n".join(paras)
-
-
-def _pdf_text(path: Path) -> str:
-    try:
-        from pypdf import PdfReader
-    except ImportError:
-        raise ValidationError("PDF support requires the 'pypdf' package.") from None
-    reader = PdfReader(str(path))
-    if reader.is_encrypted:
-        try:
-            reader.decrypt("")
-        except Exception:
-            raise ValidationError("PDF is password protected.") from None
-    return "\n\n".join((page.extract_text() or "") for page in reader.pages[:500])
-
-
 def parse(path: Path | str) -> ParsedDocument:
     path = Path(path)
     if not path.is_file():
@@ -83,9 +46,9 @@ def parse(path: Path | str) -> ParsedDocument:
     ext = path.suffix.lower()
     warnings: list[str] = []
     if ext == ".pdf":
-        kind, text = "pdf", _pdf_text(path)
+        kind, text = "pdf", pdf_text(path)
     elif ext == ".docx":
-        kind, text = "docx", _docx_text(path.read_bytes())
+        kind, text = "docx", docx_text(path.read_bytes())
     elif ext == ".json":
         raw = path.read_text("utf-8", errors="replace")
         try:

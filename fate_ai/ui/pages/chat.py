@@ -16,7 +16,7 @@ from ..components.icons import icon
 from ..components.markdown_view import render
 from ..components.widgets import Badge, confirm, error, h, info
 from ..components.worker import run_async
-from ..theme import C, chat_css
+from ..themes import C, chat_css
 
 
 class ChatInput(QPlainTextEdit):

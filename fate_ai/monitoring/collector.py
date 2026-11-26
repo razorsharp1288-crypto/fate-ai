@@ -3,28 +3,10 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from dataclasses import dataclass
-
 import psutil
 
-from ..hardware.detection import _nvidia_smi
-
-
-@dataclass
-class Sample:
-    ts: float
-    cpu_percent: float
-    ram_percent: float
-    ram_used_gb: float
-    disk_read_mb_s: float
-    disk_write_mb_s: float
-    net_sent_kb_s: float
-    net_recv_kb_s: float
-    gpu_percent: float | None
-    vram_used_gb: float | None
-    vram_total_gb: float | None
-    app_cpu_percent: float
-    app_ram_mb: float
+from ..hardware.gpu import _nvidia_smi
+from .metrics import Sample
 
 
 class MetricsCollector:

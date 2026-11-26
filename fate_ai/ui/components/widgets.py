@@ -9,7 +9,7 @@ from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPainterPat
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QMessageBox, QScrollArea, QSizePolicy, QVBoxLayout,
                                QWidget)
 
-from ..theme import C
+from ..themes import C
 
 
 class Card(QFrame):

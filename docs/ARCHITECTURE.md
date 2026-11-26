@@ -21,6 +21,27 @@ run_fate_ai.py ─► fate_ai.main ─► bootstrap.build_context()  (compositio
                                    └──────────────────────────────────────────┘
 ```
 
+## Package layout
+```
+fate_ai/
+  main.py  bootstrap.py  config.py
+  ui/            main_window.py, components/, pages/ (16), dialogs/ (onboarding, agents), themes/
+  core/          event_bus.py, task_manager.py, settings.py, exceptions.py
+  ai/            providers/ (OpenAI, Anthropic, Ollama, llama.cpp, compatible), local_engine/ (engine status &
+                 lifecycle), model_manager/ (catalogue & hardware fit), agents/, chat/, pricing.py, comparison.py
+  virtualization/ backends/ (hyperv, virtualbox, wsl, container), vm_manager.py, snapshots.py, resource_limits.py
+  sandbox/       process_sandbox.py, container_sandbox.py, vm_sandbox.py, execution_manager.py
+  hardware/      detection.py (facade), cpu.py, memory.py, gpu.py, storage.py
+  security/      credential_manager.py, permissions.py, audit.py, redaction.py, paths.py
+  database/      db.py, models.py, repository.py, migrations/ (v001_initial.py, …)
+  documents/     parsers/ (base, docx, pdf), indexing.py (local BM25 search)
+  monitoring/    metrics.py, collector.py
+  projects/      manager.py, versioning.py (git)
+  resources/     manager.py (presets, enforcement table)
+  updater/       updater.py
+  utilities/     logging.py, paths.py, validation.py, proc.py
+```
+
 ## Key decisions
 - **Threads, not asyncio.** Providers use synchronous `httpx` streaming in a `QThreadPool`. `ui/components/worker.py`
   delivers progress/results through a GUI-thread `QObject` with queued connections, so callbacks can touch widgets

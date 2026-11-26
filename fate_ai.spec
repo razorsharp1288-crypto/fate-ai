@@ -16,7 +16,7 @@ a = Analysis(
     [str(root / "run_fate_ai.py")],
     pathex=[str(root)],
     datas=[(str(root / "assets"), "assets")],
-    hiddenimports=["keyring.backends.Windows", "win32ctypes.core", "pygments.lexers", "pygments.formatters.html",
+    hiddenimports=["fate_ai.database.migrations.v001_initial", "keyring.backends.Windows", "win32ctypes.core", "pygments.lexers", "pygments.formatters.html",
                    "pygments.styles.monokai", "markdown.extensions.tables", "markdown.extensions.sane_lists"],
     excludes=excluded_qt + ["tkinter", "pytest", "matplotlib", "numpy"],
     noarchive=False,

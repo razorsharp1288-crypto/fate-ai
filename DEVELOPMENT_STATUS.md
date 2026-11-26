@@ -33,9 +33,11 @@ below are implemented but not yet executed. The CI workflow (`.github/workflows/
 | Updater: release check, SHA-256 verification, deletion on mismatch | `test_hardware_resources_updater.py` |
 | Delete-all-local-data; "don't store chat history" | `test_chat_service.py` |
 | All 16 pages + onboarding build; models page, provider test, sandbox page run, onboarding skip-everything | `tests/ui/` |
+| Local document index (BM25) with cited, untrusted-wrapped context; used by Project agents | `tests/unit/test_structure_modules.py` |
+| Snapshot manager (validated names, clean-snapshot revert, audit), resource-limit module, local engine manager, metrics summary/CSV export, input validation, migrations package | same |
 | PyInstaller spec builds and the frozen app passes `--smoke-test` | run manually on Linux |
 
-Result of the last full run: **78 passed, 0 failed, 0 skipped** (Docker available).
+Result of the last full run: **91 passed, 0 failed, 0 skipped** (Docker available).
 
 ## Implemented, not yet executed (needs Windows / external software)
 - Windows Credential Manager backend (via `keyring`; falls back to session memory with a visible warning).
@@ -63,7 +65,7 @@ Result of the last full run: **78 passed, 0 failed, 0 skipped** (Docker availabl
 ## Missing / not started
 - Code signing of the executable and installer (documented in `docs/DEVELOPER.md`; requires a certificate).
 - Image/vision inputs and tool-calling with cloud providers.
-- RAG / document indexing across many files (`documents/indexing`).
+- Embedding-based (semantic) retrieval; current indexing is keyword/BM25.
 - Live per-VM GPU assignment UI (GPU-P is detected, not configured — by design, see GPU notes in the app).
 
 ## Known issues

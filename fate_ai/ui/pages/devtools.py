@@ -15,7 +15,7 @@ from ...hardware.detection import detect_all
 from ...security.redaction import redact
 from ..components.widgets import Page, hbox, info
 from ..components.worker import run_async
-from ..theme import MONO_STACK
+from ..themes import MONO_STACK
 
 
 def mono(ro=True) -> QPlainTextEdit:

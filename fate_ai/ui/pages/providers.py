@@ -131,11 +131,13 @@ class ProvidersPage(Page):
         pid = self._pid()
         p = self.ctx.provider_repo.get(pid)
         url = self.url.text().strip()
-        if url and not url.startswith(("http://", "https://")):
-            error(self, "URL must start with http:// or https://")
+        from ...utilities.validation import is_insecure_remote, validate_url
+        try:
+            url = validate_url(url) if url else url
+        except Exception as e:
+            error(self, str(e))
             return
-        if url.startswith("http://") and not any(h in url for h in ("127.0.0.1", "localhost", "[::1]")) \
-                and KINDS[p["kind"]].requires_key:
+        if url and is_insecure_remote(url) and KINDS[p["kind"]].requires_key:
             if not confirm(self, "Insecure URL", "This endpoint uses plain HTTP; your API key would be sent "
                                                  "unencrypted. Continue?", danger=True):
                 return

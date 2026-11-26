@@ -3,53 +3,16 @@ from __future__ import annotations
 
 import logging
 
-import psutil
-
-from ..core.exceptions import BackendUnavailableError, ResourceLimitError, ValidationError
+from ..core.exceptions import BackendUnavailableError
 from ..utilities.proc import which
 from .backends.base import Cap, VirtualizationBackend, VMInfo, VMSpec
 from .backends.container import ContainerBackend
 from .backends.hyperv import HyperVBackend
 from .backends.virtualbox import VirtualBoxBackend
 from .backends.wsl import WSLBackend
+from .resource_limits import host_limits, recommend, validate_spec  # noqa: F401  (re-exported)
 
 log = logging.getLogger(__name__)
-
-# Keep at least this much for Windows itself.
-HOST_RESERVE_RAM_MB = 2048
-HOST_RESERVE_CPUS = 1
-
-
-def host_limits() -> tuple[int, int]:
-    cpus = psutil.cpu_count(logical=True) or 1
-    ram_mb = psutil.virtual_memory().total // 2 ** 20
-    return max(1, cpus - HOST_RESERVE_CPUS), max(256, ram_mb - HOST_RESERVE_RAM_MB)
-
-
-def recommend(kind: str = "dev") -> tuple[int, int, int]:
-    """Sensible (cpus, ram_mb, disk_gb) for a new VM given host size."""
-    max_cpu, max_ram = host_limits()
-    cpus = max(1, min(4, max_cpu // 2))
-    ram = max(1024, min(8192, (max_ram // 2) // 512 * 512))
-    return cpus, ram, 40 if kind == "dev" else 64
-
-
-def validate_spec(spec: VMSpec, running_ram_mb: int = 0) -> None:
-    name = spec.name.strip()
-    if not name or len(name) > 64 or not all(c.isalnum() or c in "-_ ." for c in name):
-        raise ValidationError("VM name must be 1-64 characters: letters, digits, space, - _ .")
-    max_cpu, max_ram = host_limits()
-    if spec.cpus < 1 or spec.cpus > max_cpu:
-        raise ResourceLimitError(f"CPU count must be between 1 and {max_cpu} (one core is kept for Windows).")
-    if spec.memory_mb < 256:
-        raise ResourceLimitError("At least 256 MB of RAM is required.")
-    if spec.memory_mb + running_ram_mb > max_ram:
-        raise ResourceLimitError(
-            f"{spec.memory_mb} MB plus {running_ram_mb} MB used by running VMs exceeds the safe limit of "
-            f"{max_ram} MB (2 GB is reserved for Windows).")
-    if spec.disk_gb < 1 or spec.disk_gb > 4096:
-        raise ResourceLimitError("Disk size must be between 1 and 4096 GB.")
-
 
 class VMManager:
     def __init__(self, settings=None, audit=None, backends: list[VirtualizationBackend] | None = None):

@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QButtonGroup, QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QProgressBar,
                                QPushButton, QRadioButton, QStackedWidget, QVBoxLayout, QWidget)
 
-from ...ai.local_engine.catalog import recommendations, recommended_tier
+from ...ai.model_manager.catalog import recommendations, recommended_tier
 from ...hardware.detection import detect_all
 from ...resources.manager import PRESETS, apply_preset
 from ..components.icons import logo_pixmap

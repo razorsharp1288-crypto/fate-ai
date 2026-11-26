@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from fate_ai.ai.local_engine.catalog import CATALOG, assess, recommended_tier
+from fate_ai.ai.model_manager.catalog import CATALOG, assess, recommended_tier
 from fate_ai.core.exceptions import FateError
 from fate_ai.hardware.detection import detect_all
 from fate_ai.monitoring.collector import MetricsCollector

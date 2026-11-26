@@ -2,28 +2,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from typing import Any
 
 from .db import Database
+from .models import Conversation
 
 
 def _row(r) -> dict[str, Any] | None:
     return dict(r) if r is not None else None
-
-
-@dataclass
-class Conversation:
-    id: int
-    title: str
-    provider: str
-    model: str
-    system_prompt: str
-    temperature: float
-    max_tokens: int
-    parent_id: int | None
-    created_at: str
-    updated_at: str
 
 
 class ConversationRepository:

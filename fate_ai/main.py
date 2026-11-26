@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     from .bootstrap import build_context
     from .config import default_data_dir
     from .ui.components.icons import app_icon
-    from .ui.theme import stylesheet
+    from .ui.themes import stylesheet
     from .utilities.logging import setup_logging
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)

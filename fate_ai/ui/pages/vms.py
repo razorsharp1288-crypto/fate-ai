@@ -370,6 +370,8 @@ class SnapshotDialog(QDialog):
         super().__init__(parent)
         self.ctx, self.vm = ctx, vm
         self.b = ctx.vm_manager.backends[vm.backend]
+        from ...virtualization.snapshots import SnapshotManager
+        self.snaps = SnapshotManager(self.b, ctx.audit)
         self.setWindowTitle(f"Snapshots — {vm.name}")
         self.setMinimumWidth(420)
         lay = QVBoxLayout(self)
@@ -396,14 +398,14 @@ class SnapshotDialog(QDialog):
         self.reload()
 
     def reload(self):
-        run_async(self.b.snapshots, self.vm.id, on_done=lambda s: (self.list.clear(),
+        run_async(self.snaps.list, self.vm.id, on_done=lambda s: (self.list.clear(),
                                                                     self.list.addItems([x.name for x in s])))
 
     def take(self):
-        name, ok = QInputDialog.getText(self, "Snapshot", "Name:")
+        name, ok = QInputDialog.getText(self, "Snapshot", "Name:", text=self.snaps.default_name())
         if ok and name.strip():
             self.msg.setText("Taking snapshot…")
-            run_async(self.b.create_snapshot, self.vm.id, name.strip(),
+            run_async(self.snaps.create, self.vm.id, name.strip(),
                       on_done=lambda _: (self.msg.setText("Snapshot created."), self.reload()),
                       on_error=lambda e: self.msg.setText(str(e)))
 
@@ -412,11 +414,11 @@ class SnapshotDialog(QDialog):
         if it and confirm(self, "Restore snapshot", f"Revert {self.vm.name} to '{it.text()}'? Changes since then "
                                                     f"will be lost.", danger=True):
             self.msg.setText("Restoring…")
-            run_async(self.b.restore_snapshot, self.vm.id, it.text(),
+            run_async(self.snaps.restore, self.vm.id, it.text(),
                       on_done=lambda _: self.msg.setText("Restored."), on_error=lambda e: self.msg.setText(str(e)))
 
     def delete(self):
         it = self.list.currentItem()
         if it and confirm(self, "Delete snapshot", f"Delete snapshot '{it.text()}'?", danger=True):
-            run_async(self.b.delete_snapshot, self.vm.id, it.text(), on_done=lambda _: self.reload(),
+            run_async(self.snaps.delete, self.vm.id, it.text(), on_done=lambda _: self.reload(),
                       on_error=lambda e: self.msg.setText(str(e)))

@@ -11,7 +11,7 @@ from ...core.task_manager import CancelToken
 from ..components.markdown_view import render
 from ..components.widgets import Banner, Card, Page, error, hbox
 from ..components.worker import run_async
-from ..theme import chat_css
+from ..themes import chat_css
 
 
 class ComparisonPage(Page):

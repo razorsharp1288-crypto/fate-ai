@@ -7,7 +7,7 @@ from ...hardware.detection import detect_all
 from ...monitoring.collector import MetricsCollector
 from ..components.widgets import Card, LineChart, Page, hbox
 from ..components.worker import run_async
-from ..theme import C
+from ..themes import C
 
 
 def _v(x, unit=""):
@@ -26,6 +26,10 @@ class HardwarePage(Page):
         self.interval.setSuffix(" ms")
         self.interval.setValue(ctx.settings.settings.resources.monitor_interval_ms)
         self.interval.valueChanged.connect(self._interval)
+        from PySide6.QtWidgets import QPushButton
+        export = QPushButton("Export CSV")
+        export.clicked.connect(self.export_csv)
+        self.header_actions.addWidget(export)
         self.header_actions.addWidget(QLabel("Refresh every"))
         self.header_actions.addWidget(self.interval)
 
@@ -81,7 +85,21 @@ class HardwarePage(Page):
         self.vram.push(s.vram_used_gb, f"of {s.vram_total_gb:.1f} GB" if s.vram_total_gb else "")
         self.disk.push(s.disk_read_mb_s + s.disk_write_mb_s, f"R {s.disk_read_mb_s:.1f} / W {s.disk_write_mb_s:.1f}")
         self.net.push(s.net_recv_kb_s + s.net_sent_kb_s, f"↓ {s.net_recv_kb_s:.0f} / ↑ {s.net_sent_kb_s:.0f}")
-        self.app.setText(f"FATE AI and its child processes: {s.app_cpu_percent:.1f}% CPU · {s.app_ram_mb:.0f} MB RAM")
+        from ...monitoring.metrics import summarize
+        sm = summarize(self.collector.history)
+        self.app.setText(f"FATE AI and its child processes: {s.app_cpu_percent:.1f}% CPU · {s.app_ram_mb:.0f} MB RAM"
+                         f"   ·   session: CPU avg {sm.cpu_avg}% / peak {sm.cpu_peak:.0f}%, RAM avg {sm.ram_avg}% / "
+                         f"peak {sm.ram_peak:.0f}% over {sm.count} samples")
+
+    def export_csv(self):
+        import csv
+        from PySide6.QtWidgets import QFileDialog
+        from ...monitoring.metrics import to_csv_rows
+        p, _ = QFileDialog.getSaveFileName(self, "Export metrics", str(self.ctx.paths.exports / "fate-metrics.csv"),
+                                           "CSV (*.csv)")
+        if p:
+            with open(p, "w", newline="", encoding="utf-8") as fh:
+                csv.writer(fh).writerows(to_csv_rows(self.collector.history))
 
     def workload_tick(self):
         def work():

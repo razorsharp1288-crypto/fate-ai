@@ -10,11 +10,11 @@ from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFileDialog
 
 from ...ai.agents.service import extract_tool_call
 from ...ai.providers.base import ChatMessage, ChatRequest
-from ...projects.manager import GitVersioning
+from ...projects.versioning import GitVersioning
 from ..components.markdown_view import render
 from ..components.widgets import Page, confirm, error, hbox, info
 from ..components.worker import run_async
-from ..theme import C, MONO_STACK, chat_css
+from ..themes import C, MONO_STACK, chat_css
 
 
 class DiffHighlighter(QSyntaxHighlighter):
@@ -114,9 +114,12 @@ class ProjectsPage(Page):
         self.instructions = QPlainTextEdit()
         self.instructions.setPlaceholderText("Project-specific instructions for agents (coding style, goals…)")
         self.instructions.setFixedHeight(70)
+        from PySide6.QtWidgets import QCheckBox
+        self.use_index = QCheckBox("Include relevant project files (local search)")
+        self.use_index.setChecked(True)
         save_instr = QPushButton("Save instructions")
         save_instr.clicked.connect(self.save_instructions)
-        al.addLayout(hbox(QLabel("Agent"), self.agent_combo, None, save_instr))
+        al.addLayout(hbox(QLabel("Agent"), self.agent_combo, self.use_index, None, save_instr))
         al.addWidget(self.instructions)
         self.agent_view = QTextBrowser()
         self.agent_view.document().setDefaultStyleSheet(chat_css())
@@ -348,6 +351,13 @@ class ProjectsPage(Page):
             error(self, "Set a default model (Settings → AI) or assign one to the agent.")
             return
         self.agent_input.clear()
+        if self.use_index.isChecked():
+            from ...documents.indexing import DocumentIndex
+            idx = DocumentIndex()
+            idx.add_folder(Path(self.ctx.projects.get(self.pid)["path"]), max_files=500)
+            context = idx.context_for(text)
+            if context:
+                text = f"{context}\n\n---\n\n{text}"
         self.agent_history.append(ChatMessage("user", text))
         self._render_agent()
         self._agent_turn(agent, provider, model, steps=0)

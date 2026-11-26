@@ -14,7 +14,7 @@ from ...sandbox.base import ISOLATION_DESCRIPTIONS
 from ..components.icons import icon
 from ..components.widgets import Badge, Banner, Card, Page, StatTile, confirm, error, hbox
 from ..components.worker import run_async
-from ..theme import MONO_STACK
+from ..themes import MONO_STACK
 
 
 class NewSandboxDialog(QDialog):

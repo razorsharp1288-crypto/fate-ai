@@ -72,8 +72,8 @@ class ProviderRegistry:
 
     def add_custom(self, name: str, base_url: str, kind: str = "openai_compatible") -> dict:
         from ...security.paths import safe_name
-        if not base_url.startswith(("http://", "https://")):
-            raise ValueError("Endpoint URL must start with http:// or https://")
+        from ...utilities.validation import validate_url
+        base_url = validate_url(base_url)
         pid = "custom_" + safe_name(name).lower().replace(" ", "_").replace(".", "_")
         return self.repo.upsert(pid, kind, name, base_url)
 

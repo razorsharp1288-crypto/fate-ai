@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QHBoxLayout, QHeaderView, QLabel, QLineEdit, QProgressBar, QPushButton, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from ...ai.local_engine.catalog import CATALOG, assess, recommended_tier
+from ...ai.model_manager.catalog import CATALOG, assess, recommended_tier
 from ...core.task_manager import CancelToken
 from ...hardware.detection import detect_all
 from ..components.widgets import Badge, Banner, Card, Page, confirm, error, fmt_bytes, hbox
@@ -25,6 +25,8 @@ class ModelsPage(Page):
         super().__init__("AI Models", "Download, load and manage local models with Ollama or llama.cpp. "
                                       "Everything runs on your PC — no cloud required.")
         self.ctx = ctx
+        from ...ai.local_engine.engine import LocalEngineManager
+        self.engine = LocalEngineManager(ctx.providers, ctx.settings)
         self.hw = None
         self.pull_token: CancelToken | None = None
 
@@ -126,15 +128,8 @@ class ModelsPage(Page):
 
     def refresh(self):
         def work():
-            o = self.ollama
-            v = o.version()
-            models = o.list_models() if v else []
-            running = o.running_models() if v else []
-            try:
-                lc = self.ctx.providers.get("llamacpp").health()
-            except Exception:
-                lc = False
-            return v, models, running, lc
+            st = self.engine.status()
+            return st.ollama_version, st.installed, st.loaded, st.llamacpp_running
         run_async(work, on_done=self._refreshed, on_error=lambda e: self.engine_hint.setText(str(e)))
 
     def _refreshed(self, data):
@@ -211,8 +206,11 @@ class ModelsPage(Page):
     def pull(self, tag: str):
         if not tag:
             return
-        if not all(c.isalnum() or c in ":._-/" for c in tag):
-            error(self, "Invalid model tag.")
+        from ...utilities.validation import validate_model_tag
+        try:
+            validate_model_tag(tag)
+        except Exception as e:
+            error(self, str(e))
             return
         if self.pull_token:
             error(self, "A download is already in progress.")
@@ -225,7 +223,7 @@ class ModelsPage(Page):
         self.progress_label.setText(f"Downloading {tag}…")
 
         def work(progress):
-            self.ollama.pull(tag, progress=lambda s, c, t: progress((s, c, t)), cancel=tok)
+            self.engine.pull(tag, progress=lambda s, c, t: progress((s, c, t)), cancel=tok)
 
         def prog(p):
             status, done, total = p
@@ -257,8 +255,7 @@ class ModelsPage(Page):
         if not tag:
             return
         self.progress_label.setText(f"{'Loading' if op == 'load' else 'Unloading'} {tag}…")
-        fn = (lambda: self.ollama.load(tag, self.ctx.settings.settings.local.keep_alive)) if op == "load" \
-            else (lambda: self.ollama.unload(tag))
+        fn = (lambda: self.engine.load(tag)) if op == "load" else (lambda: self.engine.unload(tag))
         run_async(fn, on_done=lambda _: (self.progress_label.setText(f"{tag}: {op} complete."), self.refresh()),
                   on_error=lambda e: error(self, str(e)))
 
