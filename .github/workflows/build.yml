@@ -79,10 +79,26 @@ jobs:
           path: |
             installer/Output/*.exe
             installer/Output/SHA256SUMS.txt
-      - name: Publish release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Read version
+        id: ver
+        shell: pwsh
+        run: echo "version=$(python -c 'import fate_ai; print(fate_ai.__version__)')" >> $env:GITHUB_OUTPUT
+      - name: Publish GitHub Release (version tags or manual runs)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: FATE AI ${{ steps.ver.outputs.version }}
+          body: |
+            **Download `FateAI-${{ steps.ver.outputs.version }}-setup.exe` below and run it.**
+
+            - Windows 10 (1809+) / Windows 11, 64-bit. Installs for your user only — no admin rights needed.
+            - The installer is not code-signed yet: if Windows SmartScreen says "Windows protected your PC",
+              click **More info → Run anyway**.
+            - Verify the download (optional): compare `Get-FileHash FateAI-${{ steps.ver.outputs.version }}-setup.exe` with `SHA256SUMS.txt`.
+            - For local AI install [Ollama](https://ollama.com/download); for cloud AI add your own OpenAI/Anthropic key in the app.
+            - If something goes wrong, the error is saved to `%LOCALAPPDATA%\FateAI\logs\crash.log`.
           files: |
             installer/Output/*.exe
             installer/Output/SHA256SUMS.txt
