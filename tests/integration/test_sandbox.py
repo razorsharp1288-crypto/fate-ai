@@ -77,10 +77,18 @@ def test_container_args_are_locked_down(tmp_path):
 @pytest.mark.skipif(not shutil.which("docker"), reason="docker not installed")
 def test_container_sandbox_real(tmp_path):
     from fate_ai.utilities.proc import run
-    if not run(["docker", "info"], timeout=20).ok:
-        pytest.skip("docker engine not running")
+    r = run(["docker", "info", "--format", "{{.OSType}}"], timeout=20)
+    if not r.ok or r.stdout.strip() != "linux":
+        pytest.skip("docker engine with Linux containers not available")
     (tmp_path / "t.py").write_text("print('in container')")
     c = ContainerSandbox(shutil.which("docker"), tmp_path, SandboxLimits(timeout_s=120), image="python:3.12-slim")
     res = c.run(["python", "t.py"])
     assert res.ok, res.stderr
     assert "in container" in res.stdout
+
+
+def test_windows_container_mode_gives_clear_error(tmp_path, monkeypatch):
+    c = ContainerSandbox("docker", tmp_path, SandboxLimits())
+    monkeypatch.setattr(c, "engine_os", lambda: "windows")
+    with pytest.raises(SandboxError, match="Linux containers"):
+        c.run(["python", "x.py"])

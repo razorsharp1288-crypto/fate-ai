@@ -86,7 +86,7 @@ class ExecutionManager:
 
     def files(self, sid: int) -> list[str]:
         wd = Path(self.get(sid)["workdir"])
-        return sorted(str(p.relative_to(wd)) for p in wd.rglob("*") if p.is_file() and ".tmp" not in p.parts)
+        return sorted(p.relative_to(wd).as_posix() for p in wd.rglob("*") if p.is_file() and ".tmp" not in p.parts)
 
     def reset(self, sid: int) -> None:
         """Wipe the sandbox's working directory (or revert its VM snapshot)."""

@@ -72,13 +72,20 @@ class Worker(QRunnable):
     def run(self) -> None:
         try:
             if self.with_progress:
-                self.kwargs["progress"] = self.bridge.progress.emit
+                self.kwargs["progress"] = lambda v: self._emit(self.bridge.progress, v)
             result = self.fn(*self.args, **self.kwargs)
         except BaseException as e:  # noqa: BLE001 - surface every failure to the UI
             log.debug("worker failed: %s", traceback.format_exc())
-            self.bridge.error.emit(e)
+            self._emit(self.bridge.error, e)
         else:
-            self.bridge.finished.emit(result)
+            self._emit(self.bridge.finished, result)
+
+    @staticmethod
+    def _emit(signal, value) -> None:
+        try:
+            signal.emit(value)
+        except RuntimeError:  # receiver torn down (window closed / app exiting) — nothing to deliver to
+            pass
 
 
 def run_async(fn: Callable[..., Any], *args, on_done: Callable[[Any], None] | None = None,

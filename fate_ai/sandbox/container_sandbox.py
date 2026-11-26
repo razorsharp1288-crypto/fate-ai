@@ -1,6 +1,7 @@
 """Level 2: Docker/Podman container with strict defaults."""
 from __future__ import annotations
 
+import os
 import subprocess
 import threading
 import time
@@ -25,8 +26,13 @@ class ContainerSandbox:
         self.image = image
         self._name: str | None = None
 
+    def engine_os(self) -> str | None:
+        """'linux' or 'windows' (Docker's container mode), or None if the engine is not running."""
+        r = run([self.exe, "info", "--format", "{{.OSType}}"], timeout=20)
+        return r.stdout.strip().lower() or None if r.ok else None
+
     def engine_ready(self) -> bool:
-        return run([self.exe, "info", "--format", "{{.ServerVersion}}"], timeout=20).ok
+        return self.engine_os() is not None
 
     def build_args(self, argv: list[str], name: str) -> list[str]:
         lim = self.limits
@@ -35,13 +41,20 @@ class ContainerSandbox:
                 f"--pids-limit={lim.max_processes}", "--cap-drop=ALL", "--security-opt=no-new-privileges",
                 "--read-only", "--tmpfs", "/tmp:rw,size=64m", "-v", f"{self.workdir}:/work:rw", "-w", "/work",
                 "-e", "HOME=/work", "-e", "PYTHONUNBUFFERED=1", "-e", "PYTHONDONTWRITEBYTECODE=1"]
+        if hasattr(os, "getuid"):
+            # Run as the host user (not root) so the bind-mounted folder is readable without capabilities.
+            args += ["--user", f"{os.getuid()}:{os.getgid()}"]
         if not lim.allow_network:
             args.append("--network=none")
         return args + [self.image, *argv]
 
     def run(self, argv: list[str], on_output=None) -> ExecutionResult:
-        if not self.engine_ready():
+        engine_os = self.engine_os()
+        if engine_os is None:
             raise SandboxError("The container engine is not running. Start Docker Desktop or Podman.")
+        if engine_os == "windows":
+            raise SandboxError("Docker is in Windows-containers mode. Right-click the Docker Desktop tray icon and "
+                               "choose 'Switch to Linux containers…' to use container sandboxes.")
         self.workdir.mkdir(parents=True, exist_ok=True)
         self._name = f"fate-sbx-{uuid.uuid4().hex[:10]}"
         args = self.build_args(argv, self._name)

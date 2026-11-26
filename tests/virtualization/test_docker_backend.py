@@ -16,7 +16,10 @@ IMAGE = "python:3.12-slim"
 
 def _docker_ready():
     exe = shutil.which("docker")
-    return exe and run([exe, "info"], timeout=20).ok and run([exe, "image", "inspect", IMAGE], timeout=20).ok
+    if not exe:
+        return False
+    info = run([exe, "info", "--format", "{{.OSType}}"], timeout=20)
+    return info.ok and info.stdout.strip() == "linux" and run([exe, "image", "inspect", IMAGE], timeout=20).ok
 
 
 pytestmark = pytest.mark.skipif(not _docker_ready(), reason=f"docker engine with {IMAGE} not available")
