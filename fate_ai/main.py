@@ -8,6 +8,30 @@ import sys
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point with crash reporting: errors are shown and logged, never silent."""
+    from .utilities.crash import install, report
+    from .utilities.paths import default_data_dir
+    data_dir = _data_dir_from_args(argv) or default_data_dir()
+    crash_log = install(data_dir / "logs")
+    try:
+        return _main(argv)
+    except SystemExit:
+        raise
+    except BaseException:
+        import traceback
+        report(crash_log, traceback.format_exc())
+        return 1
+
+
+def _data_dir_from_args(argv):
+    from pathlib import Path
+    args = list(sys.argv[1:] if argv is None else argv)
+    if "--data-dir" in args and args.index("--data-dir") + 1 < len(args):
+        return Path(args[args.index("--data-dir") + 1])
+    return None
+
+
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="FateAI")
     parser.add_argument("--minimized", action="store_true", help="start hidden in the system tray")
     parser.add_argument("--data-dir", help="override the data folder")
