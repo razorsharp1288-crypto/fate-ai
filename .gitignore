@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+installer/Output/
+*.spec.bak
+.fate_test_data/
+installer/version_info.txt
