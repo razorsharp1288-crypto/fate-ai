@@ -207,8 +207,7 @@ class ChatPage(QWidget):
         if not pid:
             return
         cfg = self.ctx.provider_repo.get(pid)
-        from ...ai.providers.registry import KINDS
-        local = KINDS[cfg["kind"]].is_local
+        local = self.ctx.providers.is_local(cfg)
         self.local_badge.set("LOCAL" if local else "CLOUD", "ok" if local else "info")
         self._load_models(pid)
         if self.conv_id and not self.streaming:
@@ -301,10 +300,9 @@ class ChatPage(QWidget):
         self._render()
 
     def _on_provider_changed_silent(self, conv):
-        from ...ai.providers.registry import KINDS
         cfg = self.ctx.provider_repo.get(conv.provider)
         if cfg:
-            local = KINDS[cfg["kind"]].is_local
+            local = self.ctx.providers.is_local(cfg)
             self.local_badge.set("LOCAL" if local else "CLOUD", "ok" if local else "info")
         self._load_models(conv.provider, keep=conv.model)
 
@@ -429,9 +427,8 @@ class ChatPage(QWidget):
             self.status.setText("Stopping…")
 
     def _is_cloud(self, pid) -> bool:
-        from ...ai.providers.registry import KINDS
         cfg = self.ctx.provider_repo.get(pid)
-        return bool(cfg) and not KINDS[cfg["kind"]].is_local
+        return bool(cfg) and not self.ctx.providers.is_local(cfg)
 
     def send(self):
         if self.streaming:

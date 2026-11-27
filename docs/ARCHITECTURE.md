@@ -27,7 +27,9 @@ fate_ai/
   main.py  bootstrap.py  config.py
   ui/            main_window.py, components/, pages/ (16), dialogs/ (onboarding, agents), themes/
   core/          event_bus.py, task_manager.py, settings.py, exceptions.py
-  ai/            providers/ (OpenAI, Anthropic, Ollama, llama.cpp, compatible), local_engine/ (engine status &
+  blueprints/    geometry.py (primitives, meshing, STL/OBJ), templates.py (offline Auto 3D), generator.py (AI spec+model),
+                 service.py (storage, import/export)
+  ai/            providers/ (OpenAI, Anthropic, Ollama, llama.cpp, compatible, catalog.py = 30 presets), local_engine/ (engine status &
                  lifecycle), model_manager/ (catalogue & hardware fit), agents/, chat/, pricing.py, comparison.py
   virtualization/ backends/ (hyperv, virtualbox, wsl, container), vm_manager.py, snapshots.py, resource_limits.py
   sandbox/       process_sandbox.py, container_sandbox.py, vm_sandbox.py, execution_manager.py

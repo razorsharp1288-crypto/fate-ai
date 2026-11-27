@@ -76,9 +76,9 @@ def test_updater_verifies_hash(tmp_path):
     assert not list((tmp_path / "b").glob("*.exe"))
 
 
-def test_updater_requires_repo(tmp_path):
+def test_updater_rejects_invalid_repo(tmp_path):
     with pytest.raises(FateError):
-        Updater("", tmp_path).check()
+        Updater("not a repo", tmp_path).check()
 
 
 def test_settings_validation_and_recovery(tmp_path):
@@ -91,3 +91,17 @@ def test_settings_validation_and_recovery(tmp_path):
     assert json.loads(p.read_text())["ai"]["temperature"] == 1.1
     with pytest.raises(Exception):
         s.update(ai={"temperature": 9})
+
+
+def test_updater_defaults_to_official_repo(tmp_path):
+    from fate_ai.updater.updater import DEFAULT_REPOSITORY, Updater
+    assert Updater("", tmp_path).repository == DEFAULT_REPOSITORY
+    assert Updater("me/fork", tmp_path).repository == "me/fork"
+
+
+def test_install_and_restart_windows_only(tmp_path, monkeypatch):
+    import sys
+    from fate_ai.updater import updater as u
+    monkeypatch.setattr(sys, "platform", "linux")
+    with pytest.raises(FateError):
+        u.install_and_restart(tmp_path / "x.exe")

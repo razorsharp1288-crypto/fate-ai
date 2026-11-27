@@ -17,8 +17,11 @@ in one native PySide6 application.
 | Area | What it does |
 |---|---|
 | Chat | Multiple chats, search, rename, delete, branch, export/import (JSON/Markdown), streaming, stop, regenerate, edit-and-resend, per-chat provider/model/system prompt/temperature/max tokens, Markdown + code highlighting, document attachments (parsed locally) |
-| Providers | OpenAI, Anthropic, Ollama, llama.cpp server, any OpenAI-compatible endpoint; connection tests, model retrieval, defaults |
-| API Keys | Windows Credential Manager storage, masked display, test, setup assistant (never scans your PC for keys) |
+| Any AI provider | 30-service catalog — OpenAI, Anthropic Claude, Google Gemini, xAI Grok, Mistral, DeepSeek, Groq, Cerebras, Perplexity, Cohere, Moonshot, Qwen, GLM, AI21, Azure OpenAI, OpenRouter, Together, Fireworks, DeepInfra, Hugging Face, NVIDIA NIM, SambaNova, Novita, plus local Ollama, llama.cpp, LM Studio, vLLM, LocalAI, Jan — and **any custom endpoint** with any auth header |
+| API Keys | "Paste any key" auto-detects the service; keys live in Windows Credential Manager; per-service test; readiness assistant (never scans your PC for keys) |
+| Blueprints | Describe anything (armor suit, drone, robot arm, rover, mech, cabin…) → AI writes a full design spec (specs, subsystems, materials, bill of materials, build steps, safety) **and** a 3D concept model; **Auto 3D** builds one instantly offline; interactive 3D viewer; edit parts; export STL (3D printing), OBJ+MTL (Blender), Markdown, PNG |
+| Auto-update | Checks GitHub Releases on start and every few hours; one-click verified download, silent install and relaunch |
+| Navigation | Grouped sidebar, Ctrl+K command palette, Ctrl+1…9 page shortcuts, toast notifications |
 | AI Models | Ollama: list, download with progress/cancel, delete, load/unload, details; curated catalogue with Lightweight/Balanced/High tiers and RAM/VRAM fit checks |
 | Virtual Machines | Hyper-V, VirtualBox, WSL2, Docker, Podman backends with capability detection; create wizard with safe resource limits; start/stop/force/pause/resume/restart/clone/delete; snapshots; console; CPU caps; background operation; emergency stop |
 | Sandbox | Level 1 restricted process (Windows Job Object limits), Level 2 container (no network, dropped caps, read-only root, CPU/RAM/PID limits), Level 3 VM with snapshot revert; import/export, reset, live CPU/RAM, emergency stop |

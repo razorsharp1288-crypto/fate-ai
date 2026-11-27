@@ -4,7 +4,6 @@ from datetime import datetime
 
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton
 
-from ...ai.providers.registry import KINDS
 from ...hardware.detection import detect_cpu, detect_gpus, detect_memory
 from ..components.icons import icon
 from ..components.widgets import Card, Page, StatTile, hbox
@@ -74,7 +73,7 @@ class HomePage(Page):
         self.greet.setText("Good " + ("morning" if h < 12 else "afternoon" if h < 18 else "evening") + ".")
         convs = self.ctx.conversations.list()
         self.t_conv.set(str(len(convs)))
-        cloud = [p for p in self.ctx.providers.configs() if not KINDS[p["kind"]].is_local]
+        cloud = [p for p in self.ctx.providers.configs() if not self.ctx.providers.is_local(p)]
         ready = sum(1 for p in cloud if self.ctx.credentials.has_api_key(p["id"]))
         self.t_prov.set(f"{ready} / {len(cloud)}", "keys configured")
         self.recent_label.setText("<br>".join(f"• {c.title} <span style='color:#6B6485'>({c.model})</span>"

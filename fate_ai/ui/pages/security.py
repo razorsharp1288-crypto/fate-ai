@@ -4,7 +4,6 @@ import sys
 
 from PySide6.QtWidgets import QGridLayout, QHeaderView, QLabel, QTableWidget, QTableWidgetItem
 
-from ...ai.providers.registry import KINDS
 from ..components.widgets import Badge, Card, Page
 
 
@@ -76,7 +75,7 @@ class SecurityPage(Page):
         admin = is_admin()
         s = self.ctx.settings.settings
         cloud = [p["name"] for p in self.ctx.providers.configs()
-                 if not KINDS[p["kind"]].is_local and self.ctx.credentials.has_api_key(p["id"])]
+                 if not self.ctx.providers.is_local(p) and self.ctx.credentials.has_api_key(p["id"])]
         rows = [
             ("API credentials", vault.persistent, f"Stored in {vault.name}. Never in the database, settings or logs; "
                                                   f"secrets are redacted from logs and diagnostics."),

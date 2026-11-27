@@ -114,7 +114,7 @@ class OnboardingDialog(QDialog):
         self.choice = QButtonGroup(self)
         for i, (label, desc) in enumerate((
                 ("Local AI", "Free and private. Models run on this PC via Ollama."),
-                ("Cloud AI", "Use OpenAI or Anthropic with your own API key (billed by them)."),
+                ("Cloud AI", "Use any cloud AI (OpenAI, Claude, Gemini, Grok, Mistral, OpenRouter…) with your own key."),
                 ("Both", "Recommended: local for private work, cloud for the hardest tasks."))):
             rb = QRadioButton(f"{label} — {desc}")
             self.choice.addButton(rb, i)
@@ -126,9 +126,11 @@ class OnboardingDialog(QDialog):
     def _provider(self):
         w, lay = self._page("Add a cloud provider (optional)", "Your key is stored in Windows Credential Manager "
                                                                "and only ever sent to the provider.")
+        from ...ai.providers.catalog import PRESETS
         self.prov = QComboBox()
-        self.prov.addItem("OpenAI", "openai")
-        self.prov.addItem("Anthropic Claude", "anthropic")
+        for p in PRESETS:
+            if p.requires_key and not p.needs_url:
+                self.prov.addItem(p.name, p.id)
         self.key = QLineEdit()
         self.key.setEchoMode(QLineEdit.Password)
         self.key.setPlaceholderText("Paste your API key (or leave empty to skip)")
@@ -214,6 +216,7 @@ class OnboardingDialog(QDialog):
         i = self.stack.currentIndex()
         if i == 4 and self.key.text().strip():
             try:
+                self.ctx.providers.add_preset(self.prov.currentData())
                 self.ctx.credentials.set_api_key(self.prov.currentData(), self.key.text())
                 self.key.clear()
             except Exception as e:

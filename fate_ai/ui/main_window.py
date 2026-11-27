@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow,
                                QMenu, QMessageBox, QPushButton, QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget)
 
@@ -13,13 +13,16 @@ from .components.icons import app_icon, icon, logo_pixmap
 log = logging.getLogger(__name__)
 
 NAV = [
-    ("home", "Home", "home"), ("chat", "Chat", "chat"), ("models", "AI Models", "models"),
-    ("providers", "Providers", "providers"), ("keys", "API Keys", "key"), ("vms", "Virtual Machines", "vm"),
-    ("sandbox", "Sandbox", "sandbox"), ("projects", "Projects", "projects"), ("prompts", "Prompt Library", "prompts"),
-    ("compare", "Model Comparison", "compare"), ("usage", "Usage Dashboard", "usage"),
-    ("hardware", "Hardware Monitor", "hardware"), ("dev", "Developer Tools", "dev"),
-    ("security", "Security Center", "security"), ("settings", "Settings", "settings"), ("about", "About FATE AI", "about"),
+    ("home", "Home", "home"), ("chat", "Chat", "chat"), ("blueprints", "Blueprints", "blueprint"),
+    ("projects", "Projects", "projects"), ("prompts", "Prompt Library", "prompts"),
+    ("models", "AI Models", "models"), ("providers", "Providers", "providers"), ("keys", "API Keys", "key"),
+    ("compare", "Model Comparison", "compare"),
+    ("vms", "Virtual Machines", "vm"), ("sandbox", "Sandbox", "sandbox"),
+    ("usage", "Usage Dashboard", "usage"), ("hardware", "Hardware Monitor", "hardware"),
+    ("dev", "Developer Tools", "dev"), ("security", "Security Center", "security"),
+    ("settings", "Settings", "settings"), ("about", "About FATE AI", "about"),
 ]
+SECTION_BEFORE = {"home": "CREATE", "models": "AI", "vms": "RUN & TEST", "usage": "SYSTEM"}
 
 
 class MainWindow(QMainWindow):
@@ -58,15 +61,34 @@ class MainWindow(QMainWindow):
         brand.addLayout(bt)
         brand.addStretch(1)
         sl.addLayout(brand)
-        sl.addSpacing(14)
+        sl.addSpacing(10)
         self.nav = QListWidget()
         self.nav.setObjectName("Nav")
         self.nav.setIconSize(QSize(18, 18))
+        self._row_of: dict[str, int] = {}
         for key, label, ic in NAV:
+            if key in SECTION_BEFORE:
+                h = QListWidgetItem(SECTION_BEFORE[key])
+                h.setFlags(Qt.NoItemFlags)
+                f = h.font()
+                f.setPointSizeF(7.5)
+                f.setBold(True)
+                f.setLetterSpacing(f.SpacingType.AbsoluteSpacing, 1.5)
+                h.setFont(f)
+                h.setForeground(QColor("#6B6485"))
+                h.setSizeHint(QSize(10, 30))
+                self.nav.addItem(h)
             it = QListWidgetItem(icon(ic), "  " + label)
             it.setData(Qt.UserRole, key)
+            self._row_of[key] = self.nav.count()
             self.nav.addItem(it)
+        search = QPushButton("  Search or jump…   Ctrl+K")
+        search.setObjectName("Ghost")
+        search.setStyleSheet("text-align:left; border:1px solid #2A2440; border-radius:8px; padding:7px 10px;")
+        search.clicked.connect(self.command_palette)
+        self._search_btn = search
         self.nav.currentRowChanged.connect(self._nav_changed)
+        sl.addWidget(self._search_btn)
         sl.addWidget(self.nav, 1)
         self.bg_status = QLabel("")
         self.bg_status.setObjectName("Dim")
@@ -86,18 +108,36 @@ class MainWindow(QMainWindow):
             self.pages[key] = placeholder
             self.stack.addWidget(placeholder)
         self.statusBar().showMessage("Ready")
+        QShortcut(QKeySequence("Ctrl+K"), self, activated=self.command_palette)
+        QShortcut(QKeySequence("Ctrl+N"), self, activated=lambda: (self.navigate("chat"), self.page("chat").new_chat()))
+        for i, (key, _, _) in enumerate(NAV[:9]):
+            QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self, activated=lambda k=key: self.navigate(k))
         self._tray()
         self.bg_timer = QTimer(self, interval=15000, timeout=self._bg_check)
         self.bg_timer.start()
+        # automatic update checks: shortly after start, then every N hours
+        self._update_info = None
+        self.update_btn = QPushButton("  Update available")
+        self.update_btn.setIcon(icon("update", "#FFFFFF"))
+        self.update_btn.setObjectName("Primary")
+        self.update_btn.hide()
+        self.update_btn.clicked.connect(self.show_update)
+        side.layout().insertWidget(side.layout().count() - 2, self.update_btn)
+        hours = self.ctx.settings.settings.advanced.update_check_hours
+        self.update_timer = QTimer(self, interval=hours * 3600 * 1000, timeout=self.check_updates_background)
+        if self.ctx.settings.settings.advanced.auto_update_check:
+            self.update_timer.start()
+            QTimer.singleShot(20000, self.check_updates_background)
         self.navigate("home")
 
     def _page_factories(self):
-        from .pages import (about, api_keys, chat, comparison, devtools, hardware, home, models, projects, prompts,
+        from .pages import (about, api_keys, blueprints, chat, comparison, devtools, hardware, home, models, projects, prompts,
                             providers, sandbox, security, settings, usage, vms)
         c = self.ctx
         return {
             "home": lambda: home.HomePage(c, self.navigate),
             "chat": lambda: chat.ChatPage(c),
+            "blueprints": lambda: blueprints.BlueprintsPage(c),
             "models": lambda: models.ModelsPage(c),
             "providers": lambda: providers.ProvidersPage(c),
             "keys": lambda: api_keys.APIKeysPage(c),
@@ -147,14 +187,17 @@ class MainWindow(QMainWindow):
         return w
 
     def navigate(self, key: str):
-        row = next(i for i, (k, _, _) in enumerate(NAV) if k == key)
+        row = self._row_of[key]
         if self.nav.currentRow() != row:
             self.nav.setCurrentRow(row)
         else:
             self._nav_changed(row)
 
     def _nav_changed(self, row):
-        key = NAV[row][0]
+        it = self.nav.item(row)
+        key = it.data(Qt.UserRole) if it else None
+        if not key:
+            return
         w = self.page(key)
         self.stack.setCurrentWidget(w)
         if hasattr(w, "on_show"):
@@ -162,6 +205,73 @@ class MainWindow(QMainWindow):
                 w.on_show()
             except Exception:
                 log.exception("on_show failed for %s", key)
+
+    def command_palette(self):
+        from .dialogs.command_palette import CommandPalette
+        commands = [(f"Go to {label}", lambda k=key: self.navigate(k)) for key, label, _ in NAV]
+        commands += [
+            ("New chat", lambda: (self.navigate("chat"), self.page("chat").new_chat())),
+            ("New blueprint", lambda: (self.navigate("blueprints"), self.page("blueprints").new())),
+            ("Add an AI service / API key", lambda: self.navigate("keys")),
+            ("Download a local model", lambda: self.navigate("models")),
+            ("Check for updates", self.check_updates_now),
+            ("Emergency stop all VMs & sandboxes", self.emergency_stop),
+        ]
+        for c in self.ctx.conversations.list()[:30]:
+            commands.append((f"Open chat: {c.title}", lambda cid=c.id: (self.navigate("chat"),
+                                                                       self.page("chat").open_conversation(cid))))
+        CommandPalette(commands, self).exec()
+
+    def _updater(self):
+        from ..updater.updater import Updater
+        return Updater(self.ctx.settings.settings.advanced.update_repository, self.ctx.paths.updates)
+
+    def check_updates_background(self, manual: bool = False):
+        from .components.worker import run_async
+        adv = self.ctx.settings.settings.advanced
+        if not manual and not adv.auto_update_check:
+            return
+        up = self._updater()
+
+        def done(info):
+            if not info.available:
+                if manual:
+                    self.toast(f"You're up to date (FATE AI {info.current}).")
+                return
+            if not manual and info.latest == adv.skipped_version:
+                return
+            self._update_info = (up, info)
+            self.update_btn.setText(f"  Update to {info.latest}")
+            self.update_btn.show()
+            if manual or not self.isVisible():
+                self.show_update()
+            else:
+                self.toast(f"FATE AI {info.latest} is available — click “Update” in the sidebar.", 7000)
+            if self.ctx.settings.settings.general.notifications and self.tray.isVisible():
+                self.tray.showMessage("FATE AI update available", f"Version {info.latest} is ready to install.",
+                                      QSystemTrayIcon.Information, 6000)
+
+        def fail(e):
+            log.info("update check failed: %s", e)
+            if manual:
+                self.toast(f"Update check failed: {e}", 6000)
+        run_async(lambda: up.check(adv.update_channel == "beta"), on_done=done, on_error=fail)
+
+    def check_updates_now(self):
+        self.check_updates_background(manual=True)
+
+    def show_update(self):
+        if not self._update_info:
+            self.check_updates_now()
+            return
+        from .dialogs.update import UpdateDialog
+        up, info = self._update_info
+        self._restore()
+        UpdateDialog(self.ctx, up, info, self).exec()
+
+    def toast(self, text: str, ms: int = 4000):
+        from .components.toast import Toast
+        Toast(self, text, ms)
 
     def _use_prompt(self, text):
         self.navigate("chat")
@@ -174,6 +284,7 @@ class MainWindow(QMainWindow):
         m.addAction("Open FATE AI", self._restore)
         m.addAction("New chat", lambda: (self._restore(), self.navigate("chat")))
         m.addSeparator()
+        m.addAction("Check for updates", self.check_updates_now)
         m.addAction("Emergency stop all VMs & sandboxes", self.emergency_stop)
         m.addSeparator()
         m.addAction("Quit FATE AI", self.quit_app)

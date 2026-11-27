@@ -75,7 +75,10 @@ class AdvancedSettings(BaseModel):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     developer_mode: bool = False
     update_channel: Literal["stable", "beta"] = "stable"
-    update_repository: str = ""  # "owner/repo" on GitHub; empty disables checks
+    update_repository: str = ""  # "owner/repo" on GitHub; empty = official FATE AI releases
+    auto_update_check: bool = True
+    update_check_hours: int = Field(6, ge=1, le=168)
+    skipped_version: str = ""
 
 
 class AppSettings(BaseModel):

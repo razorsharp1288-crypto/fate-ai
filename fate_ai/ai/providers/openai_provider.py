@@ -19,18 +19,38 @@ class OpenAICompatibleProvider(Provider):
     requires_key = False
     token_param = "max_tokens"
 
+    def __init__(self, *args, options: dict | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        o = options or {}
+        if "requires_key" in o:
+            self.requires_key = bool(o["requires_key"])
+        self.raw_base = o.get("raw_base")
+        self.auth_header = o.get("auth_header") or "Authorization"
+        self.auth_scheme = o.get("auth_scheme", "Bearer")
+        self.extra_headers = {str(k): str(v) for k, v in (o.get("headers") or {}).items()}
+
     def _headers(self) -> dict[str, str]:
         h = super()._headers()
+        h.update(getattr(self, "extra_headers", {}))
         if self.api_key:
-            h["Authorization"] = f"Bearer {self.api_key}"
+            header = getattr(self, "auth_header", "Authorization")
+            scheme = getattr(self, "auth_scheme", "Bearer")
+            h[header] = f"{scheme} {self.api_key}".strip()
         return h
 
+    def _api_base(self) -> str:
+        """``raw_base``: the URL already includes its version path (…/v1, /v1beta/openai, /api/paas/v4)."""
+        raw = getattr(self, "raw_base", None)
+        if raw is None:  # custom URL: use it as-is if it ends in a version segment, else assume /v1
+            import re
+            raw = bool(re.search(r"/v\d+[a-z]*(/openai)?$", self.base_url)) or self.base_url.endswith("/openai")
+        return self.base_url if raw else f"{self.base_url}/v1"
+
     def _models_url(self) -> str:
-        return f"{self.base_url}/models" if self.base_url.endswith("/v1") else f"{self.base_url}/v1/models"
+        return f"{self._api_base()}/models"
 
     def _chat_url(self) -> str:
-        return (f"{self.base_url}/chat/completions" if self.base_url.endswith("/v1")
-                else f"{self.base_url}/v1/chat/completions")
+        return f"{self._api_base()}/chat/completions"
 
     def _filter_model(self, mid: str) -> bool:
         return True

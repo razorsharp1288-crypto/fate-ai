@@ -20,6 +20,8 @@ from ..core.exceptions import FateError
 
 # Fill in when you publish signed releases (base64 Ed25519 public key).
 FATE_UPDATE_PUBKEY = ""
+# Public repository whose GitHub Releases publish FATE AI installers.
+DEFAULT_REPOSITORY = "razorsharp1288-crypto/fate-ai"
 
 
 def parse_version(v: str) -> tuple:
@@ -41,7 +43,7 @@ class UpdateInfo:
 
 class Updater:
     def __init__(self, repository: str, dest: Path, transport=None, pubkey: str = FATE_UPDATE_PUBKEY):
-        self.repository = repository
+        self.repository = repository or DEFAULT_REPOSITORY
         self.dest = Path(dest)
         self.transport = transport
         self.pubkey = pubkey
@@ -115,3 +117,20 @@ class Updater:
             Ed25519PublicKey.from_public_bytes(base64.b64decode(self.pubkey)).verify(base64.b64decode(sig.strip()), data)
         except Exception:
             raise FateError("Update signature is invalid; refusing to install.") from None
+
+
+def install_and_restart(installer: Path) -> None:
+    """Run a verified installer silently; it closes FATE AI, upgrades in place and relaunches it.
+
+    Windows only. The caller must quit the application right after this returns.
+    """
+    import subprocess
+    import sys
+    if sys.platform != "win32":
+        raise FateError("Automatic installation is only available on Windows.")
+    installer = Path(installer)
+    if not installer.is_file() or installer.suffix.lower() != ".exe":
+        raise FateError("Installer file not found.")
+    DETACHED, NEW_GROUP = 0x00000008, 0x00000200
+    subprocess.Popen([str(installer), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS",
+                      "/UPDATE=1"], creationflags=DETACHED | NEW_GROUP, close_fds=True)

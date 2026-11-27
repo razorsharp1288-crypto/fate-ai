@@ -68,14 +68,46 @@ class ProviderRegistry:
             raise KeyError(f"Unknown provider '{provider_id}'")
         spec = KINDS[cfg["kind"]]
         key = self.credentials.get_api_key(provider_id)
-        return spec.cls(provider_id, cfg["base_url"] or spec.default_url, api_key=key, transport=self._transport)
+        url = cfg["base_url"] or spec.default_url
+        if issubclass(spec.cls, OpenAICompatibleProvider):
+            return spec.cls(provider_id, url, api_key=key, transport=self._transport, options=cfg.get("options"))
+        return spec.cls(provider_id, url, api_key=key, transport=self._transport)
 
-    def add_custom(self, name: str, base_url: str, kind: str = "openai_compatible") -> dict:
+    def requires_key(self, cfg: dict) -> bool:
+        return bool(cfg.get("options", {}).get("requires_key", KINDS[cfg["kind"]].requires_key))
+
+    def is_local(self, cfg: dict) -> bool:
+        if "is_local" in cfg.get("options", {}):
+            return bool(cfg["options"]["is_local"])
+        return KINDS[cfg["kind"]].is_local
+
+    def add_preset(self, preset_id: str, base_url: str | None = None) -> dict:
+        """Add (or return) a provider from the catalog, e.g. 'gemini', 'groq', 'openrouter'."""
+        from .catalog import BY_ID
+        p = BY_ID[preset_id]
+        existing = self.repo.get(p.id)
+        if existing and not base_url:
+            return existing
+        url = base_url or p.base_url
+        if base_url:
+            from ...utilities.validation import validate_url
+            url = validate_url(base_url)
+        opts = {"preset": p.id, "requires_key": p.requires_key, "is_local": p.category == "Local"}
+        if p.kind == "openai_compatible":
+            opts.update(raw_base=p.raw_base, auth_header=p.auth_header, auth_scheme=p.auth_scheme)
+        return self.repo.upsert(p.id, p.kind, p.name, url, existing["default_model"] if existing else "", True, opts)
+
+    def add_custom(self, name: str, base_url: str, kind: str = "openai_compatible", requires_key: bool = True,
+                   auth_header: str = "Authorization", auth_scheme: str = "Bearer", is_local: bool | None = None) -> dict:
         from ...security.paths import safe_name
-        from ...utilities.validation import validate_url
+        from ...utilities.validation import is_local_url, validate_url
         base_url = validate_url(base_url)
+        if not auth_header or any(c in auth_header for c in ":\r\n "):
+            raise ValueError("Invalid auth header name")
         pid = "custom_" + safe_name(name).lower().replace(" ", "_").replace(".", "_")
-        return self.repo.upsert(pid, kind, name, base_url)
+        opts = {"requires_key": requires_key, "auth_header": auth_header, "auth_scheme": auth_scheme,
+                "is_local": is_local_url(base_url) if is_local is None else is_local}
+        return self.repo.upsert(pid, kind, name, base_url, "", True, opts)
 
     def remove(self, provider_id: str) -> None:
         self.credentials.delete_api_key(provider_id)

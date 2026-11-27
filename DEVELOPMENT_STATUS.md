@@ -1,4 +1,4 @@
-# Development status — FATE AI 0.1.0
+# Development status — FATE AI 0.2.0
 
 Last updated: 2026-11-26. This file is kept honest: nothing is marked complete unless it is implemented, and
 "tested" means an automated test actually ran (environment noted).
@@ -35,9 +35,13 @@ below are implemented but not yet executed. The CI workflow (`.github/workflows/
 | All 16 pages + onboarding build; models page, provider test, sandbox page run, onboarding skip-everything | `tests/ui/` |
 | Local document index (BM25) with cited, untrusted-wrapped context; used by Project agents | `tests/unit/test_structure_modules.py` |
 | Snapshot manager (validated names, clean-snapshot revert, audit), resource-limit module, local engine manager, metrics summary/CSV export, input validation, migrations package | same |
+| Any-provider catalog (30 services), key auto-detection, custom endpoints with any auth header, Azure `api-key`, raw version paths | `tests/integration/test_any_provider.py` |
+| Blueprints: closed-manifold primitive meshes, transforms, sanitising untrusted model output, STL/OBJ export, 7 offline templates, JSON extraction, AI generation via mock provider, persistence/import/export | `tests/unit/test_blueprints.py` |
+| Blueprints, API Keys (paste & detect), command palette UI workflows | `tests/ui/test_ui_workflows.py` |
+| Auto-update: default repository, verified download, Windows-only silent install with `/UPDATE=1` relaunch | `test_hardware_resources_updater.py` (install step runs only on Windows) |
 | PyInstaller spec builds and the frozen app passes `--smoke-test` | run manually on Linux |
 
-Result of the last full run: **91 passed, 0 failed, 0 skipped** (Docker available).
+Result of the last full run: **131 passed, 0 failed, 0 skipped** (Docker available).
 
 ## Implemented, not yet executed (needs Windows / external software)
 - Windows Credential Manager backend (via `keyring`; falls back to session memory with a visible warning).
@@ -53,6 +57,10 @@ Result of the last full run: **91 passed, 0 failed, 0 skipped** (Docker availabl
 - Real Ollama model download + local inference (protocol verified; model hosts were unreachable from the build sandbox).
 
 ## Partially complete
+- **Blueprints** 3D models are primitive-based concept models (boxes, cylinders, spheres…), not detailed CAD; AI
+  quality depends on the chosen model. The in-app viewer is software-rendered (fine up to a few thousand triangles).
+- **Auto-update** installs silently only from the installed Windows app; v0.1.0 has no updater, so 0.2.0 must be
+  installed manually once.
 - **Agents** run a single-tool-per-turn loop (max 6 steps) in the Projects page; no parallel tool calls or
   network tool yet (the `network` permission exists but no tool uses it).
 - **Model comparison** quality check is a simple "answer contains text" assertion.

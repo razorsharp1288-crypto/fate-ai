@@ -30,7 +30,7 @@ class ProvidersPage(Page):
         super().__init__("Providers", "Connect cloud and local AI backends. Cloud usage is billed directly by each "
                                       "provider to your own account — FATE AI never proxies your requests.")
         self.ctx = ctx
-        add = QPushButton("+ Custom endpoint")
+        add = QPushButton("+ Add provider")
         add.clicked.connect(self.add_custom)
         self.header_actions.addWidget(add)
         test_all = QPushButton("Test all")
@@ -90,9 +90,9 @@ class ProvidersPage(Page):
         cur = select or (self.list.currentItem().data(Qt.UserRole) if self.list.currentItem() else None)
         self.list.clear()
         for p in self.ctx.providers.configs():
-            spec = KINDS[p["kind"]]
-            mark = "●" if (not spec.requires_key or self.ctx.credentials.has_api_key(p["id"])) else "○"
-            it = QListWidgetItem(f"{mark}  {p['name']}  ·  {'Local' if spec.is_local else 'Cloud'}")
+            needs = self.ctx.providers.requires_key(p)
+            mark = "●" if (not needs or self.ctx.credentials.has_api_key(p["id"])) else "○"
+            it = QListWidgetItem(f"{mark}  {p['name']}  ·  {'Local' if self.ctx.providers.is_local(p) else 'Cloud'}")
             it.setData(Qt.UserRole, p["id"])
             self.list.addItem(it)
             if p["id"] == cur:
@@ -109,21 +109,23 @@ class ProvidersPage(Page):
         if not pid:
             return
         p = self.ctx.provider_repo.get(pid)
-        spec = KINDS[p["kind"]]
+        from ...ai.providers.catalog import BY_ID
+        local = self.ctx.providers.is_local(p)
+        preset = BY_ID.get(p.get("options", {}).get("preset", p["id"]))
         self.title.setText(p["name"])
-        self.badge.set("Local" if spec.is_local else "Cloud", "ok" if spec.is_local else "info")
-        self.desc.setText(spec.description)
+        self.badge.set("Local" if local else "Cloud", "ok" if local else "info")
+        self.desc.setText(preset.description if preset else KINDS[p["kind"]].description)
         self.url.setText(p["base_url"])
         self.default_model.clear()
         self.default_model.setCurrentText(p["default_model"])
         self.enabled.setChecked(p["enabled"])
-        if spec.requires_key:
+        if self.ctx.providers.requires_key(p):
             k = self.ctx.credentials.get_api_key(pid)
             self.key_state.setText(f"{self.ctx.credentials.mask(k)} — manage on the API Keys page")
         else:
             k = self.ctx.credentials.get_api_key(pid)
             self.key_state.setText("Optional" + (f" ({self.ctx.credentials.mask(k)})" if k else " — not required"))
-        self.remove_btn.setVisible(pid.startswith("custom_"))
+        self.remove_btn.setVisible(pid not in ("ollama", "llamacpp", "openai", "anthropic"))
         self.result.setText("Click “Test connection” to verify.")
         self.models.setRowCount(0)
 
@@ -137,7 +139,7 @@ class ProvidersPage(Page):
         except Exception as e:
             error(self, str(e))
             return
-        if url and is_insecure_remote(url) and KINDS[p["kind"]].requires_key:
+        if url and is_insecure_remote(url) and self.ctx.providers.requires_key(p):
             if not confirm(self, "Insecure URL", "This endpoint uses plain HTTP; your API key would be sent "
                                                  "unencrypted. Continue?", danger=True):
                 return
@@ -178,14 +180,9 @@ class ProvidersPage(Page):
                   on_error=lambda e: self.result.setText(f"✗ {e}"))
 
     def add_custom(self):
-        d = AddProviderDialog(self)
-        if d.exec():
-            try:
-                p = self.ctx.providers.add_custom(d.name.text().strip(), d.url.text().strip())
-            except Exception as e:
-                error(self, str(e))
-                return
-            self.reload(p["id"])
+        from ..dialogs.add_provider import CatalogDialog
+        CatalogDialog(self.ctx, self).exec()
+        self.reload()
 
     def remove(self):
         pid = self._pid()

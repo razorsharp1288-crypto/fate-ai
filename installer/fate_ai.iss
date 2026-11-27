@@ -44,6 +44,8 @@ Name: "{autodesktop}\FATE AI"; Filename: "{app}\FateAI.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\FateAI.exe"; Description: "{cm:LaunchProgram,FATE AI}"; Flags: nowait postinstall skipifsilent
+; After an in-app automatic update (/UPDATE=1) relaunch FATE AI even though setup ran silently.
+Filename: "{app}\FateAI.exe"; Flags: nowait; Check: IsAppUpdate
 
 [UninstallRun]
 ; Remove the optional "launch at sign-in" entry if the user enabled it.
@@ -51,3 +53,9 @@ Filename: "{sys}\reg.exe"; Parameters: "delete HKCU\Software\Microsoft\Windows\C
 
 ; User data (%LOCALAPPDATA%\FateAI) and API keys are intentionally kept on uninstall so a reinstall keeps
 ; your chats. Use Settings > Privacy > "Delete all local data" before uninstalling to remove everything.
+
+[Code]
+function IsAppUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:UPDATE|0}') = '1';
+end;

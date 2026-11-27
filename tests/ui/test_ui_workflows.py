@@ -157,3 +157,56 @@ def test_every_page_builds(qtbot, uictx):
     for key, _, _ in NAV:
         win.navigate(key)
         assert type(win.page(key)).__name__ != "QLabel", f"page {key} failed to build"
+
+
+def test_blueprints_auto3d_and_export(qtbot, uictx, tmp_path, monkeypatch):
+    from fate_ai.ui.pages import blueprints as bpmod
+    page = bpmod.BlueprintsPage(uictx)
+    qtbot.addWidget(page)
+    page.idea.setPlainText("A quadcopter drone for aerial photos")
+    page.auto_3d()
+    assert len(page.parts) >= 10 and page.bid
+    assert "drone" in page.status.text().lower()
+    page.table.selectRow(0)
+    page.mirror_part()
+    n = len(page.parts)
+    page.delete_part()
+    assert len(page.parts) == n - 1
+    monkeypatch.setattr(bpmod.QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path / "m.stl"), ""))
+    monkeypatch.setattr(bpmod, "info", lambda *a, **k: None)
+    page.export("stl")
+    assert (tmp_path / "m.stl").read_text().startswith("solid")
+    page.viewer.set_view("front")
+    page.viewer.grab()  # renders without error
+
+
+def test_blueprint_ai_generation_via_local_server(qtbot, uictx):
+    """The fake Ollama echoes the prompt, which contains no JSON -> a clear error, no crash."""
+    from fate_ai.ui.pages import blueprints as bpmod
+    errors = []
+    page = bpmod.BlueprintsPage(uictx)
+    qtbot.addWidget(page)
+    bpmod.error = lambda *a, **k: errors.append(a)
+    page.on_show()
+    qtbot.waitUntil(lambda: page.model.count() > 0, timeout=5000)
+    page.idea.setPlainText("an exosuit")
+    page.generate_ai()
+    qtbot.waitUntil(lambda: page.gen_btn.isEnabled(), timeout=10000)
+    assert "failed" in page.status.text().lower() and errors
+
+
+def test_api_keys_paste_detect(qtbot, uictx):
+    from fate_ai.ui.pages.api_keys import APIKeysPage
+    page = APIKeysPage(uictx)
+    qtbot.addWidget(page)
+    page.any_key.setText("gsk_abcdefghijklmnopqrstuvwxyz")
+    assert page.suggest_row.count() == 1
+    assert "Groq" in page.suggest_row.itemAt(0).widget().text()
+    page.catalog.search.setText("gemini")
+    assert page.catalog.grid.count() == 1
+
+
+def test_command_palette_filters():
+    from fate_ai.ui.dialogs.command_palette import _score
+    assert _score("bp", "Go to Blueprints") > 0
+    assert _score("blue", "Go to Blueprints") > _score("blue", "xyz")

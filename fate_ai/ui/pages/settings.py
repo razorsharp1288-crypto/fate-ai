@@ -208,8 +208,15 @@ class SettingsPage(Page):
         self.channel = QComboBox()
         self.channel.addItems(["stable", "beta"])
         self.channel.setCurrentText(s.advanced.update_channel)
+        from ...updater.updater import DEFAULT_REPOSITORY
         self.repo = QLineEdit(s.advanced.update_repository)
-        self.repo.setPlaceholderText("owner/repo on GitHub that publishes FATE AI releases")
+        self.repo.setPlaceholderText(f"{DEFAULT_REPOSITORY} (official releases)")
+        self.auto_upd = QCheckBox("Automatically check for updates")
+        self.auto_upd.setChecked(s.advanced.auto_update_check)
+        self.upd_hours = QSpinBox()
+        self.upd_hours.setRange(1, 168)
+        self.upd_hours.setSuffix(" h")
+        self.upd_hours.setValue(s.advanced.update_check_hours)
         upd = QPushButton("Check for updates")
         upd.clicked.connect(self.check_updates)
         self.upd_label = QLabel(f"Current version {__version__}")
@@ -218,6 +225,8 @@ class SettingsPage(Page):
         f.addRow("", self.dev)
         f.addRow("Update channel", self.channel)
         f.addRow("Update source", self.repo)
+        f.addRow("", self.auto_upd)
+        f.addRow("Check every", self.upd_hours)
         f.addRow(upd, self.upd_label)
         tabs.addTab(w, "Advanced")
 
@@ -258,7 +267,9 @@ class SettingsPage(Page):
                            "gpu_index": None if self.gpu_idx.value() < 0 else self.gpu_idx.value()},
                 privacy={"store_chat_history": self.store_hist.isChecked()},
                 advanced={"log_level": self.log_level.currentText(), "developer_mode": self.dev.isChecked(),
-                          "update_channel": self.channel.currentText(), "update_repository": self.repo.text().strip()})
+                          "update_channel": self.channel.currentText(), "update_repository": self.repo.text().strip(),
+                          "auto_update_check": self.auto_upd.isChecked(),
+                          "update_check_hours": self.upd_hours.value(), "skipped_version": ""})
         except Exception as e:
             error(self, f"Invalid setting: {e}")
             return
@@ -316,6 +327,12 @@ class SettingsPage(Page):
             self.on_delete_all()
 
     def check_updates(self):
+        win = self.window()
+        if hasattr(win, "check_updates_now"):
+            self.upd_label.setText("Checking…")
+            win.check_updates_now()
+            self.upd_label.setText(f"Current version {__version__} — see notification.")
+            return
         repo = self.repo.text().strip()
         self.upd_label.setText("Checking…")
         up = Updater(repo, self.ctx.paths.updates)

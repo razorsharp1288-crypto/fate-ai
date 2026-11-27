@@ -28,6 +28,9 @@ PATHS = {
                 'a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0'
                 '-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     "about": '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+    "blueprint": '<path d="M3 3h18v18H3z"/><path d="M3 9h18M9 21V9"/><path d="M13 13h5v5h-5z"/>',
+    "cube": '<path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 22V12M21 7l-9 5-9-5"/>',
+    "update": '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
     "send": '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
     "stop": '<rect x="6" y="6" width="12" height="12" rx="2"/>',
     "plus": '<path d="M12 5v14M5 12h14"/>',
