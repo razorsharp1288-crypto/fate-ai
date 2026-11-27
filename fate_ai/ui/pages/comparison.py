@@ -91,7 +91,7 @@ class ComparisonPage(Page):
 
     def load_models(self):
         pid = self.provider.currentData()
-        run_async(lambda: [m.id for m in self.ctx.providers.get(pid).list_models()],
+        run_async(lambda: self.ctx.providers.models(pid)[0],
                   on_done=lambda ids: (self.model.clear(), self.model.addItems(ids)),
                   on_error=lambda e: error(self, str(e)))
 

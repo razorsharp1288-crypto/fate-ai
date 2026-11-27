@@ -223,3 +223,87 @@ class CatalogDialog(QDialog):
     def _pick(self, preset):
         if PresetSetupDialog(self.ctx, preset, parent=self).exec():
             self.accept()
+
+
+class ModelsDialog(QDialog):
+    """Every model a service offers (live or suggested), choose the default, or add one by name."""
+
+    def __init__(self, ctx, provider_id: str, parent=None):
+        super().__init__(parent)
+        from PySide6.QtWidgets import QListWidget
+        self.ctx, self.pid = ctx, provider_id
+        cfg = ctx.provider_repo.get(provider_id)
+        self.setWindowTitle(f"Models — {cfg['name']}")
+        self.resize(520, 560)
+        lay = QVBoxLayout(self)
+        self.msg = QLabel("Detecting models…")
+        self.msg.setWordWrap(True)
+        self.msg.setObjectName("Muted")
+        lay.addWidget(self.msg)
+        self.filter = QLineEdit(placeholderText="Filter models…")
+        self.filter.textChanged.connect(self._filter)
+        lay.addWidget(self.filter)
+        self.list = QListWidget()
+        self.list.itemDoubleClicked.connect(lambda _: self.make_default())
+        lay.addWidget(self.list, 1)
+        self.add = QLineEdit(placeholderText="Add a model by its exact ID, e.g. mercury-coder")
+        self.add.returnPressed.connect(self.add_model)
+        add_btn = QPushButton("Add")
+        add_btn.clicked.connect(self.add_model)
+        lay.addLayout(hbox(self.add, add_btn))
+        default_btn = QPushButton("Use as default model")
+        default_btn.setObjectName("Primary")
+        default_btn.clicked.connect(self.make_default)
+        refresh = QPushButton("Refresh")
+        refresh.clicked.connect(self.load)
+        close = QPushButton("Close")
+        close.clicked.connect(self.accept)
+        lay.addLayout(hbox(refresh, None, default_btn, close))
+        self.load()
+
+    def load(self):
+        self.msg.setText("Detecting models…")
+
+        def done(result):
+            ids, source, message = result
+            default = self.ctx.provider_repo.get(self.pid).get("default_model", "")
+            self.list.clear()
+            for m in ids:
+                self.list.addItem(("★ " if m == default else "") + m)
+            icon = {"live": "✓", "suggested": "ℹ"}.get(source, "✗")
+            self.msg.setText(f"{icon} {message}" + ("" if source == "live" else
+                             " Suggested names may change — if one fails, add the exact ID from the service's docs."))
+            self._filter(self.filter.text())
+        run_async(lambda: self.ctx.providers.models(self.pid), on_done=done,
+                  on_error=lambda e: self.msg.setText(f"✗ {e}"))
+
+    def _filter(self, text):
+        for i in range(self.list.count()):
+            it = self.list.item(i)
+            it.setHidden(bool(text) and text.lower() not in it.text().lower())
+
+    def _selected(self) -> str | None:
+        it = self.list.currentItem()
+        return it.text().removeprefix("★ ") if it else None
+
+    def make_default(self):
+        m = self._selected()
+        if not m:
+            return
+        self.ctx.providers.set_default_model(self.pid, m)
+        ai = self.ctx.settings.settings.ai
+        if ai.default_provider == self.pid or not ai.default_model:
+            self.ctx.settings.update(ai={"default_provider": self.pid, "default_model": m})
+        self.load()
+
+    def add_model(self):
+        name = self.add.text().strip()
+        if not name:
+            return
+        try:
+            self.ctx.providers.add_custom_model(self.pid, name)
+        except Exception as e:
+            error(self, str(e))
+            return
+        self.add.clear()
+        self.load()

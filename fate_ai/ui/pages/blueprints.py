@@ -246,15 +246,16 @@ class BlueprintsPage(Page):
         if default:
             self.model.addItem(default)
 
-        def done(models):
+        def done(result):
             if self.provider.currentData() != pid:
                 return
+            ids = result[0]
             cur = self.model.currentText()
             self.model.clear()
-            self.model.addItems([m.id for m in models])
+            self.model.addItems(ids)
             if cur:
                 self.model.setCurrentText(cur)
-        run_async(lambda: self.ctx.providers.get(pid).list_models(), on_done=done, on_error=lambda e: None)
+        run_async(lambda: self.ctx.providers.models(pid), on_done=done, on_error=lambda e: None)
 
     def reload(self, select: int | None = None):
         cur = select or self.bid

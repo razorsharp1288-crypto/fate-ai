@@ -230,13 +230,13 @@ class ChatPage(QWidget):
         self.model.blockSignals(False)
         self.status.setText("Loading models…")
 
-        def done(models):
+        def done(result):
             if self.provider.currentData() != pid:
                 return
+            ids, source, message = result
             cur = self.model.currentText()
             self.model.blockSignals(True)
             self.model.clear()
-            ids = [m.id for m in models]
             self.model.addItems(ids)
             if cur:
                 self.model.setCurrentText(cur)
@@ -244,13 +244,17 @@ class ChatPage(QWidget):
                 self.model.setCurrentIndex(0)
                 self._on_model_changed(ids[0])
             self.model.blockSignals(False)
-            self.status.setText(f"{len(ids)} models available from {self.provider.currentText()}."
-                                if ids else "No models found. Install a local model or check the provider.")
+            if source == "live":
+                self.status.setText(f"{len(ids)} models available from {self.provider.currentText()}.")
+            elif source == "suggested":
+                self.status.setText(f"{message} You can also type any model name in the box.")
+            else:
+                self.status.setText(f"{message} Type a model name in the box, or add the key on API Keys.")
 
         def fail(e):
             if self.provider.currentData() == pid:
                 self.status.setText(f"Could not list models: {e}")
-        run_async(lambda: self.ctx.providers.get(pid).list_models(), on_done=done, on_error=fail)
+        run_async(lambda: self.ctx.providers.models(pid), on_done=done, on_error=fail)
 
     def _on_model_changed(self, text):
         if self.conv_id and text and not self.streaming:

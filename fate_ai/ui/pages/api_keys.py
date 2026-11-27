@@ -8,7 +8,7 @@ from ...ai.providers.autodetect import cloud_candidates, connect, connect_known
 from ...ai.providers.catalog import BY_ID, PRESETS, detect_from_key
 from ..components.widgets import Banner, Card, Page, confirm, error, hbox
 from ..components.worker import run_async
-from ..dialogs.add_provider import CatalogGrid, CustomEndpointDialog, PresetSetupDialog
+from ..dialogs.add_provider import CatalogGrid, CustomEndpointDialog, ModelsDialog, PresetSetupDialog
 
 
 class APIKeysPage(Page):
@@ -72,7 +72,10 @@ class APIKeysPage(Page):
         self.open_chat.setObjectName("Primary")
         self.open_chat.hide()
         self.open_chat.clicked.connect(self._go_chat)
-        paste.add(hbox(self.open_chat, None))
+        self.models_btn = QPushButton("See all models")
+        self.models_btn.hide()
+        self.models_btn.clicked.connect(lambda: ModelsDialog(self.ctx, self._last_connected, self).exec())
+        paste.add(hbox(self.open_chat, self.models_btn, None))
         self._debounce = QTimer(self, singleShot=True, interval=700, timeout=self._auto_connect)
         self._busy = False
         self.body.addWidget(paste)
@@ -110,7 +113,7 @@ class APIKeysPage(Page):
 
     # -- paste & connect -----------------------------------------------------
     def _key_changed(self, text: str):
-        for w in (self.try_all_btn, self.pick, self.open_chat):
+        for w in (self.try_all_btn, self.pick, self.open_chat, self.models_btn):
             w.hide()
         self.suggest_label.setText("")
         self._clear_suggestions()
@@ -183,6 +186,7 @@ class APIKeysPage(Page):
                                 f"{len(winner.models)} models available. Default model: <b>{model}</b>. "
                                 f"Key saved to {self.ctx.credentials.backend.name}.")
         self.open_chat.show()
+        self.models_btn.show()
         self._last_connected = winner.preset.id
         self.refresh()
         win = self.window()
@@ -257,6 +261,8 @@ class APIKeysPage(Page):
             result.setWordWrap(True)
             result.setObjectName("Dim")
             edit = QPushButton("Change key")
+            models = QPushButton("Models")
+            models.clicked.connect(lambda _=False, pid=p["id"]: ModelsDialog(self.ctx, pid, self).exec())
             test = QPushButton("Test")
             rm = QPushButton("Remove")
             rm.setObjectName("Danger")
@@ -264,7 +270,7 @@ class APIKeysPage(Page):
             edit.clicked.connect(lambda _=False, pid=pid: self._edit(pid))
             test.clicked.connect(lambda _=False, pid=pid, lab=result: self.test(pid, lab))
             rm.clicked.connect(lambda _=False, pid=pid: self.remove(pid))
-            for c, w in enumerate((name, state, result, edit, test, rm)):
+            for c, w in enumerate((name, state, result, models, edit, test, rm)):
                 self.grid.addWidget(w, r, c)
             r += 1
         self.grid.setColumnStretch(2, 1)

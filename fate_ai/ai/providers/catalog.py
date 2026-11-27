@@ -105,6 +105,45 @@ PRESETS: list[ProviderPreset] = [
 
 BY_ID = {p.id: p for p in PRESETS}
 
+# Well-known model IDs per service. Used when a service does not list its models (or the list call fails),
+# shown in the app as "suggested". Services rename models over time, so FATE AI always prefers the live list.
+KNOWN_MODELS: dict[str, tuple[str, ...]] = {
+    "openai": ("gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "o3-mini"),
+    "anthropic": ("claude-sonnet-4-0", "claude-opus-4-0", "claude-3-7-sonnet-latest", "claude-3-5-haiku-latest"),
+    "gemini": ("gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash"),
+    "mistral": ("mistral-large-latest", "mistral-medium-latest", "mistral-small-latest", "codestral-latest",
+                "ministral-8b-latest"),
+    "xai": ("grok-4", "grok-3", "grok-3-mini"),
+    "deepseek": ("deepseek-chat", "deepseek-reasoner"),
+    "groq": ("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"),
+    "cerebras": ("llama-3.3-70b", "llama3.1-8b"),
+    "perplexity": ("sonar", "sonar-pro", "sonar-reasoning", "sonar-reasoning-pro"),
+    "cohere": ("command-a-03-2025", "command-r-plus", "command-r"),
+    "moonshot": ("kimi-k2-0711-preview", "moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"),
+    "qwen": ("qwen-plus", "qwen-max", "qwen-turbo"),
+    "zhipu": ("glm-4-plus", "glm-4-flash", "glm-4-air"),
+    "ai21": ("jamba-large", "jamba-mini"),
+    "inception": ("mercury", "mercury-coder", "mercury-small", "mercury-coder-small"),
+    "minimax": ("MiniMax-M1", "MiniMax-Text-01"),
+    "openrouter": ("openrouter/auto", "openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet",
+                   "meta-llama/llama-3.3-70b-instruct", "deepseek/deepseek-chat"),
+    "together": ("meta-llama/Llama-3.3-70B-Instruct-Turbo", "deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct-Turbo"),
+    "fireworks": ("accounts/fireworks/models/llama-v3p3-70b-instruct", "accounts/fireworks/models/deepseek-v3"),
+    "deepinfra": ("meta-llama/Llama-3.3-70B-Instruct", "deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct"),
+    "huggingface": ("meta-llama/Llama-3.3-70B-Instruct", "Qwen/Qwen2.5-72B-Instruct", "deepseek-ai/DeepSeek-V3"),
+    "nvidia": ("meta/llama-3.3-70b-instruct", "meta/llama-3.1-8b-instruct", "deepseek-ai/deepseek-r1"),
+    "sambanova": ("Meta-Llama-3.3-70B-Instruct", "DeepSeek-V3-0324", "Meta-Llama-3.1-8B-Instruct"),
+    "novita": ("meta-llama/llama-3.3-70b-instruct", "deepseek/deepseek-v3"),
+    "hyperbolic": ("meta-llama/Llama-3.3-70B-Instruct", "deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct"),
+    "lambda": ("llama3.3-70b-instruct-fp8", "deepseek-v3-0324"),
+    "featherless": ("meta-llama/Meta-Llama-3.1-8B-Instruct", "Qwen/Qwen2.5-72B-Instruct"),
+    "nebius": ("meta-llama/Llama-3.3-70B-Instruct", "deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct"),
+}
+
+
+def known_models(preset_id: str) -> list[str]:
+    return list(KNOWN_MODELS.get(preset_id, ()))
+
 
 def detect_from_key(key: str) -> list[ProviderPreset]:
     """Best-guess providers for a pasted key (most specific prefix first).

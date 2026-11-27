@@ -12,6 +12,41 @@ _NON_CHAT = ("embedding", "whisper", "tts", "dall-e", "moderation", "davinci", "
              "image", "transcribe", "realtime", "audio", "search")
 
 
+def parse_model_list(body, keep=lambda mid: True) -> list[ModelInfo]:
+    """Accept every common model-list shape: {"data": [...]}, {"models": [...]}, {"result": [...]}, a bare list;
+    entries as strings or objects with id / name / model / slug."""
+    items = body
+    if isinstance(body, dict):
+        for k in ("data", "models", "result", "results", "items"):
+            if isinstance(body.get(k), list):
+                items = body[k]
+                break
+            if isinstance(body.get(k), dict) and isinstance(body[k].get("data"), list):
+                items = body[k]["data"]
+                break
+        else:
+            items = []
+    out, seen = [], set()
+    for m in items if isinstance(items, list) else []:
+        if isinstance(m, str):
+            mid, det = m, {}
+        elif isinstance(m, dict):
+            mid = m.get("id") or m.get("model") or m.get("name") or m.get("slug")
+            det = {"owned_by": m.get("owned_by", "")} if m.get("owned_by") else {}
+            if m.get("context_length") or m.get("context_window"):
+                det["context"] = m.get("context_length") or m.get("context_window")
+        else:
+            continue
+        if not mid or not isinstance(mid, str):
+            continue
+        mid = mid.removeprefix("models/")  # Google-style names
+        if mid in seen or not keep(mid):
+            continue
+        seen.add(mid)
+        out.append(ModelInfo(id=mid, name=mid, details=det))
+    return out
+
+
 class OpenAICompatibleProvider(Provider):
     """Any server implementing the OpenAI Chat Completions API (vLLM, LM Studio, llama.cpp, ...)."""
 
@@ -60,12 +95,14 @@ class OpenAICompatibleProvider(Provider):
             with self._client(20) as c:
                 r = c.get(self._models_url())
                 self.raise_for_status(r)
-                data = r.json().get("data", [])
+                try:
+                    body = r.json()
+                except ValueError:
+                    from ...core.exceptions import ProviderError
+                    raise ProviderError("The service's model list is not JSON.") from None
         except httpx.HTTPError as e:
             raise self.wrap_network_errors(e) from None
-        models = [ModelInfo(id=m["id"], name=m["id"], details={"owned_by": m.get("owned_by", "")})
-                  for m in data if isinstance(m, dict) and "id" in m and self._filter_model(m["id"])]
-        return sorted(models, key=lambda m: m.id)
+        return sorted(parse_model_list(body, self._filter_model), key=lambda m: m.id)
 
     def _payload(self, req: ChatRequest, include_temperature: bool = True) -> dict:
         msgs = []

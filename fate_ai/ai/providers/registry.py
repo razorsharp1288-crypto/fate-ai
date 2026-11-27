@@ -73,6 +73,47 @@ class ProviderRegistry:
             return spec.cls(provider_id, url, api_key=key, transport=self._transport, options=cfg.get("options"))
         return spec.cls(provider_id, url, api_key=key, transport=self._transport)
 
+    def models(self, provider_id: str) -> tuple[list[str], str, str]:
+        """Model IDs for a provider: ``(ids, source, message)``.
+
+        source = "live" (the service listed them), "suggested" (service didn't list models — built-in list plus
+        any you added) or "error" (nothing available). Models you add yourself are always included.
+        """
+        from .catalog import known_models
+        cfg = self.repo.get(provider_id) or {}
+        opts = cfg.get("options", {})
+        mine = [m for m in opts.get("custom_models", []) if isinstance(m, str)]
+        default = cfg.get("default_model", "")
+        try:
+            live = [m.id for m in self.get(provider_id).list_models()]
+            err = ""
+        except Exception as e:  # noqa: BLE001 - surface as message, fall back below
+            live, err = [], str(e)
+        if live:
+            return _merge(mine, live), "live", f"{len(live)} models from the service"
+        if "authentication" in err.lower() or "no api key" in err.lower():
+            return _merge(mine, [default] if default else []), "error", err
+        suggested = known_models(opts.get("preset", provider_id))
+        ids = _merge(mine, [default] if default else [], suggested)
+        if ids:
+            why = err or "the service returned no model list"
+            return ids, "suggested", f"Showing suggested models ({why})."
+        return [], "error", err or "No models found — add one by name."
+
+    def add_custom_model(self, provider_id: str, model: str) -> None:
+        model = (model or "").strip()
+        if not model or len(model) > 200 or any(c in model for c in "\r\n\t "):
+            raise ValueError("Invalid model name")
+        cfg = self.repo.get(provider_id)
+        opts = dict(cfg.get("options", {}))
+        opts["custom_models"] = _merge([model], opts.get("custom_models", []))
+        self.repo.upsert(cfg["id"], cfg["kind"], cfg["name"], cfg["base_url"], cfg["default_model"] or model,
+                         cfg["enabled"], opts)
+
+    def set_default_model(self, provider_id: str, model: str) -> None:
+        cfg = self.repo.get(provider_id)
+        self.repo.upsert(cfg["id"], cfg["kind"], cfg["name"], cfg["base_url"], model, cfg["enabled"], cfg["options"])
+
     def requires_key(self, cfg: dict) -> bool:
         return bool(cfg.get("options", {}).get("requires_key", KINDS[cfg["kind"]].requires_key))
 
@@ -112,3 +153,13 @@ class ProviderRegistry:
     def remove(self, provider_id: str) -> None:
         self.credentials.delete_api_key(provider_id)
         self.repo.delete(provider_id)
+
+
+def _merge(*lists) -> list[str]:
+    out, seen = [], set()
+    for lst in lists:
+        for m in lst or []:
+            if m and m not in seen:
+                seen.add(m)
+                out.append(m)
+    return out

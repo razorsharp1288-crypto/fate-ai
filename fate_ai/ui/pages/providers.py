@@ -73,10 +73,12 @@ class ProvidersPage(Page):
         test.clicked.connect(self.test)
         fetch = QPushButton("Fetch models")
         fetch.clicked.connect(self.fetch_models)
+        addm = QPushButton("Add model…")
+        addm.clicked.connect(self.add_model)
         self.remove_btn = QPushButton("Remove")
         self.remove_btn.setObjectName("Danger")
         self.remove_btn.clicked.connect(self.remove)
-        self.detail.add(hbox(save, test, fetch, None, self.remove_btn))
+        self.detail.add(hbox(save, test, fetch, addm, None, self.remove_btn))
         self.result = Banner("Select a provider.")
         self.detail.add(self.result)
         self.models = QTableWidget(0, 2)
@@ -128,6 +130,8 @@ class ProvidersPage(Page):
         self.remove_btn.setVisible(pid not in ("ollama", "llamacpp", "openai", "anthropic"))
         self.result.setText("Click “Test connection” to verify.")
         self.models.setRowCount(0)
+        if not self.ctx.providers.requires_key(p) or self.ctx.credentials.has_api_key(pid):
+            self.fetch_models()  # detect models automatically
 
     def save(self):
         pid = self._pid()
@@ -163,21 +167,35 @@ class ProvidersPage(Page):
         pid = self._pid()
         self.result.setText("Fetching models…")
 
-        def done(models):
+        def done(result):
+            ids, source, message = result
             self.models.setRowCount(0)
             cur = self.default_model.currentText()
             self.default_model.clear()
-            self.default_model.addItems([m.id for m in models])
-            self.default_model.setCurrentText(cur)
-            for m in models:
+            self.default_model.addItems(ids)
+            self.default_model.setCurrentText(cur or (ids[0] if ids else ""))
+            for mid in ids:
                 r = self.models.rowCount()
                 self.models.insertRow(r)
-                self.models.setItem(r, 0, QTableWidgetItem(m.id))
-                det = ", ".join(f"{k}: {v}" for k, v in m.details.items() if v and not isinstance(v, (dict, list)))
-                self.models.setItem(r, 1, QTableWidgetItem(det))
-            self.result.setText(f"✓ {len(models)} models retrieved.")
-        run_async(lambda: self.ctx.providers.get(pid).list_models(), on_done=done,
+                self.models.setItem(r, 0, QTableWidgetItem(mid))
+                self.models.setItem(r, 1, QTableWidgetItem("listed by the service" if source == "live"
+                                                           else "suggested / added by you"))
+            prefix = "✓" if source == "live" else ("ℹ" if ids else "✗")
+            self.result.setText(f"{prefix} {message}")
+        run_async(lambda: self.ctx.providers.models(pid), on_done=done,
                   on_error=lambda e: self.result.setText(f"✗ {e}"))
+
+    def add_model(self):
+        from PySide6.QtWidgets import QInputDialog
+        pid = self._pid()
+        name, ok = QInputDialog.getText(self, "Add model", "Exact model ID (as written in the service's docs):")
+        if ok and name.strip():
+            try:
+                self.ctx.providers.add_custom_model(pid, name.strip())
+            except Exception as e:
+                error(self, str(e))
+                return
+            self.fetch_models()
 
     def add_custom(self):
         from ..dialogs.add_provider import CatalogDialog

@@ -200,7 +200,7 @@ def test_api_keys_paste_autoconnects(qtbot, uictx, monkeypatch):
     from fate_ai.ui.pages.api_keys import APIKeysPage
     calls = []
 
-    def fake_probe(preset, key, transport=None):
+    def fake_probe(preset, key, transport=None, lenient=False):
         calls.append(preset.id)
         return autodetect.ProbeResult(preset, preset.id == "groq", "ok", ["llama-3.3-70b"])
     monkeypatch.setattr(autodetect, "_probe", fake_probe)
