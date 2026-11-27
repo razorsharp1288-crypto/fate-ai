@@ -13,7 +13,8 @@ from .components.icons import app_icon, icon, logo_pixmap
 log = logging.getLogger(__name__)
 
 NAV = [
-    ("home", "Home", "home"), ("chat", "Chat", "chat"), ("blueprints", "Blueprints", "blueprint"),
+    ("home", "Home", "home"), ("chat", "Chat", "chat"), ("computer", "PC Control", "cursor"),
+    ("blueprints", "Blueprints", "blueprint"),
     ("projects", "Projects", "projects"), ("prompts", "Prompt Library", "prompts"),
     ("models", "AI Models", "models"), ("providers", "Providers", "providers"), ("keys", "API Keys", "key"),
     ("compare", "Model Comparison", "compare"),
@@ -131,13 +132,14 @@ class MainWindow(QMainWindow):
         self.navigate("home")
 
     def _page_factories(self):
-        from .pages import (about, api_keys, blueprints, chat, comparison, devtools, hardware, home, models, projects, prompts,
+        from .pages import (about, api_keys, blueprints, chat, computer, comparison, devtools, hardware, home, models, projects, prompts,
                             providers, sandbox, security, settings, usage, vms)
         c = self.ctx
         return {
             "home": lambda: home.HomePage(c, self.navigate),
             "chat": lambda: chat.ChatPage(c),
             "blueprints": lambda: blueprints.BlueprintsPage(c),
+            "computer": lambda: computer.ComputerPage(c),
             "models": lambda: models.ModelsPage(c),
             "providers": lambda: providers.ProvidersPage(c),
             "keys": lambda: api_keys.APIKeysPage(c),

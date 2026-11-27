@@ -26,6 +26,7 @@ class SettingsPage(Page):
         self.on_delete_all = on_delete_all
         s = ctx.settings.settings
         tabs = QTabWidget()
+        self.tabs = tabs
         tabs.setMinimumHeight(560)
         self.body.addWidget(tabs)
 
@@ -184,6 +185,86 @@ class SettingsPage(Page):
                              "updates or essential services to free resources."))
         tabs.addTab(w, "Resources")
 
+        # ---------------------------------------------------------------- voice
+        w, f = tab()
+        self.v_engine = QComboBox()
+        self.v_engine.addItem("Automatic (best available)", "auto")
+        self.v_engine.addItem("Cloud Whisper — OpenAI or Groq key (most accurate)", "cloud")
+        self.v_engine.addItem("Windows offline — audio never leaves this PC", "windows")
+        self.v_engine.setCurrentIndex(max(0, self.v_engine.findData(s.voice.engine)))
+        self.v_lang = QLineEdit(s.voice.language)
+        self.v_lang.setPlaceholderText("auto-detect (or e.g. en, es, fr)")
+        self.v_send = QCheckBox("Send the message as soon as I stop talking")
+        self.v_send.setChecked(s.voice.send_after_speaking)
+        self.v_speak = QCheckBox("Read replies aloud")
+        self.v_speak.setChecked(s.voice.speak_replies)
+        self.v_voice = QComboBox()
+        self.v_voice.addItem("System default", "")
+        self.v_rate = QDoubleSpinBox()
+        self.v_rate.setRange(-1, 1)
+        self.v_rate.setSingleStep(0.1)
+        self.v_rate.setValue(s.voice.rate)
+        test_voice = QPushButton("Test voice")
+        test_voice.clicked.connect(self._test_voice)
+        f.addRow("Speech recognition", self.v_engine)
+        f.addRow("Language", self.v_lang)
+        f.addRow("", self.v_send)
+        f.addRow("", self.v_speak)
+        f.addRow("Voice", hbox(self.v_voice, test_voice))
+        f.addRow("Speed", self.v_rate)
+        vn = QLabel("Click the 🎤 microphone in Chat or PC Control to talk. Cloud Whisper sends the recording to "
+                    "OpenAI/Groq using your key; Windows offline uses the speech languages installed in Windows "
+                    "Settings → Time & language → Speech.")
+        vn.setObjectName("Dim")
+        vn.setWordWrap(True)
+        f.addRow(vn)
+        self._voice_names_loaded = False
+        tabs.addTab(w, "Voice")
+
+        # ---------------------------------------------------------------- PC control & power
+        w, lay = tab(form=False)
+        c = s.computer
+        lay.addWidget(Banner("<b>PC Control</b> lets the AI model you choose see your screen and operate this PC "
+                             "while it works on a task you start on the PC Control page. Screenshots go to that "
+                             "model — use a local model to keep them on this PC.", warn=True))
+        self.pc_on = QCheckBox("Allow FATE AI to control this PC")
+        self.pc_on.setChecked(c.enabled)
+        f = QFormLayout()
+        self.pc_caps = {}
+        for key, label in (("see_screen", "See the screen (screenshots)"),
+                           ("open_apps", "Open apps, websites and switch windows"),
+                           ("read_files", "Read files and folders"), ("write_files", "Create and edit files"),
+                           ("run_commands", "Run commands (PowerShell)"),
+                           ("mouse_keyboard", "Use the mouse and keyboard")):
+            cb = QCheckBox(label)
+            cb.setChecked(getattr(c, key))
+            self.pc_caps[key] = cb
+            f.addRow("", cb)
+        self.pc_approval = QComboBox()
+        self.pc_approval.addItem("Ask me before every action (recommended)", "ask")
+        self.pc_approval.addItem("Auto-approve opening apps & sites; ask before changes", "auto_safe")
+        self.pc_approval.addItem("Full auto — never ask (fastest, riskiest)", "auto_all")
+        self.pc_approval.setCurrentIndex(max(0, self.pc_approval.findData(c.approval)))
+        self.pc_steps = QSpinBox()
+        self.pc_steps.setRange(1, 200)
+        self.pc_steps.setValue(c.max_steps)
+        lay.addWidget(self.pc_on)
+        f.addRow("Approval", self.pc_approval)
+        f.addRow("Max steps per task", self.pc_steps)
+        lay.addLayout(f)
+        full = QPushButton("⚡ Give FATE AI full power (everything on, full auto, maximum resources)")
+        full.setObjectName("Danger")
+        full.clicked.connect(self._full_power)
+        lay.addWidget(full)
+        pn = QLabel("Maximum resources = all CPU threads and every GPU layer for local models, a RAM budget of "
+                    "everything except 2 GB for Windows, and high priority for FATE AI. FATE AI never disables "
+                    "Windows security, antivirus or updates.")
+        pn.setObjectName("Dim")
+        pn.setWordWrap(True)
+        lay.addWidget(pn)
+        lay.addStretch(1)
+        tabs.addTab(w, "PC Control & Power")
+
         w, lay = tab(form=False)
         self.store_hist = QCheckBox("Store chat history on this PC")
         self.store_hist.setChecked(s.privacy.store_chat_history)
@@ -235,6 +316,42 @@ class SettingsPage(Page):
         save.clicked.connect(self.save)
         self.body.addLayout(hbox(None, save))
 
+    def show_tab(self, name: str):
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == name:
+                self.tabs.setCurrentIndex(i)
+
+    def on_show(self):
+        if not self._voice_names_loaded:
+            self._voice_names_loaded = True
+            from ...voice.speak import voices
+            cur = self.ctx.settings.settings.voice.voice_name
+            for v in voices():
+                self.v_voice.addItem(v, v)
+            i = self.v_voice.findData(cur)
+            if i >= 0:
+                self.v_voice.setCurrentIndex(i)
+
+    def _test_voice(self):
+        from ...voice.speak import speak
+        if not speak("Hi, I'm FATE AI. This is how I sound.", self.v_voice.currentData() or "", self.v_rate.value()):
+            error(self, "Text-to-speech is not available on this system.")
+
+    def _full_power(self):
+        if not confirm(self, "Full power", "This turns on every PC Control permission in FULL AUTO mode (the AI acts "
+                       "without asking) and gives FATE AI maximum CPU, GPU and RAM.\n\nOnly do this if you trust the "
+                       "AI model you use. You can still stop any task with the Stop button or by moving the mouse to "
+                       "the top-left corner.\n\nContinue?", danger=True):
+            return
+        self.pc_on.setChecked(True)
+        for cb in self.pc_caps.values():
+            cb.setChecked(True)
+        self.pc_approval.setCurrentIndex(self.pc_approval.findData("auto_all"))
+        self.preset.setCurrentIndex(self.preset.findData("max"))
+        self._preset()
+        self.save()
+        self.ctx.audit.log("pc_control", "full_power_enabled", "")
+
     def _preset(self):
         k = self.preset.currentData()
         if k in PRESETS:
@@ -266,6 +383,12 @@ class SettingsPage(Page):
                            "ram_budget_mb": self.ram_budget.value(), "background_priority": self.prio.currentText(),
                            "gpu_index": None if self.gpu_idx.value() < 0 else self.gpu_idx.value()},
                 privacy={"store_chat_history": self.store_hist.isChecked()},
+                voice={"engine": self.v_engine.currentData(), "language": self.v_lang.text().strip(),
+                       "send_after_speaking": self.v_send.isChecked(), "speak_replies": self.v_speak.isChecked(),
+                       "voice_name": self.v_voice.currentData() or "", "rate": self.v_rate.value()},
+                computer={"enabled": self.pc_on.isChecked(), "approval": self.pc_approval.currentData(),
+                          "max_steps": self.pc_steps.value(),
+                          **{k: cb.isChecked() for k, cb in self.pc_caps.items()}},
                 advanced={"log_level": self.log_level.currentText(), "developer_mode": self.dev.isChecked(),
                           "update_channel": self.channel.currentText(), "update_repository": self.repo.text().strip(),
                           "auto_update_check": self.auto_upd.isChecked(),

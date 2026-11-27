@@ -111,7 +111,11 @@ class OllamaProvider(Provider):
         msgs = []
         if req.system:
             msgs.append({"role": "system", "content": req.system})
-        msgs += [{"role": m.role, "content": m.content} for m in req.messages]
+        for m in req.messages:
+            d = {"role": m.role, "content": m.content}
+            if m.images:
+                d["images"] = list(m.images)
+            msgs.append(d)
         opts = {"num_predict": req.max_tokens}
         if req.temperature is not None:
             opts["temperature"] = req.temperature

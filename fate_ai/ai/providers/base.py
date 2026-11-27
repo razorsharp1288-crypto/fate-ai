@@ -20,6 +20,7 @@ Role = Literal["system", "user", "assistant"]
 class ChatMessage:
     role: Role
     content: str
+    images: list[str] = field(default_factory=list)  # base64-encoded PNG/JPEG (vision models)
 
 
 @dataclass

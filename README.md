@@ -20,6 +20,9 @@ in one native PySide6 application.
 | Any AI provider | 30-service catalog — OpenAI, Anthropic Claude, Google Gemini, xAI Grok, Mistral, DeepSeek, Groq, Cerebras, Perplexity, Cohere, Moonshot, Qwen, GLM, AI21, Azure OpenAI, OpenRouter, Together, Fireworks, DeepInfra, Hugging Face, NVIDIA NIM, SambaNova, Novita, plus local Ollama, llama.cpp, LM Studio, vLLM, LocalAI, Jan — and **any custom endpoint** with any auth header |
 | API Keys | "Paste any key" auto-detects the service; keys live in Windows Credential Manager; per-service test; readiness assistant (never scans your PC for keys) |
 | Blueprints | Describe anything (armor suit, drone, robot arm, rover, mech, cabin…) → AI writes a full design spec (specs, subsystems, materials, bill of materials, build steps, safety) **and** a 3D concept model; **Auto 3D** builds one instantly offline; interactive 3D viewer; edit parts; export STL (3D printing), OBJ+MTL (Blender), Markdown, PNG |
+| Voice | 🎤 talk instead of typing (cloud Whisper via your OpenAI/Groq key, or Windows offline dictation); optional spoken replies |
+| PC Control | The AI can see your screen and open apps/websites, read & edit files, run commands and use mouse & keyboard — off by default, per-permission switches, ask-first / auto-safe / full-auto modes, floating Stop bar, corner failsafe, audit log |
+| Maximum power | One switch: all CPU threads, all GPU layers, maximum RAM budget, high priority |
 | Auto-update | Checks GitHub Releases on start and every few hours; one-click verified download, silent install and relaunch |
 | Navigation | Grouped sidebar, Ctrl+K command palette, Ctrl+1…9 page shortcuts, toast notifications |
 | AI Models | Ollama: list, download with progress/cancel, delete, load/unload, details; curated catalogue with Lightweight/Balanced/High tiers and RAM/VRAM fit checks |

@@ -49,10 +49,18 @@ class AnthropicProvider(Provider):
         for m in req.messages:
             if m.role == "system":
                 continue
+            blocks = [{"type": "image", "source": {"type": "base64",
+                                                   "media_type": "image/jpeg" if b.startswith("/9j/") else "image/png",
+                                                   "data": b}} for b in m.images]
+            blocks.append({"type": "text", "text": m.content or "."})
             if msgs and msgs[-1]["role"] == m.role:
-                msgs[-1]["content"] += "\n\n" + m.content
+                msgs[-1]["content"].extend(blocks)
             else:
-                msgs.append({"role": m.role, "content": m.content})
+                msgs.append({"role": m.role, "content": blocks})
+        # plain-text turns stay strings (smaller payloads, identical behaviour)
+        for m in msgs:
+            if all(b["type"] == "text" for b in m["content"]):
+                m["content"] = "\n\n".join(b["text"] for b in m["content"])
         payload = {"model": req.model, "max_tokens": req.max_tokens, "messages": msgs, "stream": True}
         if req.system:
             payload["system"] = req.system

@@ -57,8 +57,31 @@ class SandboxSettings(BaseModel):
     container_image: str = "python:3.12-slim"
 
 
+class VoiceSettings(BaseModel):
+    engine: Literal["auto", "cloud", "windows"] = "auto"
+    language: str = ""            # e.g. "en"; empty = auto-detect
+    send_after_speaking: bool = True
+    speak_replies: bool = False
+    voice_name: str = ""
+    rate: float = Field(0.0, ge=-1.0, le=1.0)
+
+
+class ComputerSettings(BaseModel):
+    """PC Control: lets the AI see the screen and operate this computer. Off until the user turns it on."""
+    enabled: bool = False
+    see_screen: bool = True
+    open_apps: bool = True
+    read_files: bool = True
+    write_files: bool = True
+    run_commands: bool = True
+    mouse_keyboard: bool = True
+    approval: Literal["ask", "auto_safe", "auto_all"] = "ask"
+    max_steps: int = Field(30, ge=1, le=200)
+    screenshot_max_width: int = Field(1366, ge=640, le=3840)
+
+
 class ResourceSettings(BaseModel):
-    preset: Literal["low", "balanced", "high", "custom"] = "balanced"
+    preset: Literal["low", "balanced", "high", "max", "custom"] = "balanced"
     max_cpu_percent: int = Field(60, ge=5, le=100)
     ram_budget_mb: int = Field(4096, ge=256)
     background_priority: Literal["low", "normal", "high"] = "low"
@@ -90,6 +113,8 @@ class AppSettings(BaseModel):
     sandbox: SandboxSettings = SandboxSettings()
     resources: ResourceSettings = ResourceSettings()
     privacy: PrivacySettings = PrivacySettings()
+    voice: VoiceSettings = VoiceSettings()
+    computer: ComputerSettings = ComputerSettings()
     advanced: AdvancedSettings = AdvancedSettings()
 
 

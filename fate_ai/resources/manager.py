@@ -32,6 +32,8 @@ PRESETS = {
                        "Reasonable AI workloads while keeping Windows responsive."),
     "high": Preset("high", "High performance", 90, 0.75, "normal",
                    "More resources for local inference, development and testing."),
+    "max": Preset("max", "Maximum — use everything", 100, 0.9, "high",
+                  "All CPU threads, every GPU layer and high priority for FATE AI. Other apps may slow down."),
 }
 
 ENFORCEMENT = [
@@ -49,9 +51,13 @@ ENFORCEMENT = [
 def apply_preset(settings_store, key: str) -> None:
     p = PRESETS[key]
     total_mb = psutil.virtual_memory().total // 2 ** 20
-    settings_store.update(resources={"preset": key, "max_cpu_percent": p.max_cpu_percent,
-                                     "ram_budget_mb": int(total_mb * p.ram_fraction),
-                                     "background_priority": p.background_priority})
+    budget = int(total_mb * p.ram_fraction)
+    if key == "max":
+        budget = max(256, total_mb - 2048)  # everything except what Windows itself needs
+    settings_store.update(resources={"preset": key, "max_cpu_percent": p.max_cpu_percent, "ram_budget_mb": budget,
+                                     "background_priority": p.background_priority},
+                          local={"num_gpu_layers": 999 if key == "max" else None})
+    set_own_priority(p.background_priority)
 
 
 def inference_threads(max_cpu_percent: int) -> int:

@@ -12,6 +12,10 @@ _NON_CHAT = ("embedding", "whisper", "tts", "dall-e", "moderation", "davinci", "
              "image", "transcribe", "realtime", "audio", "search")
 
 
+def _mime(b64: str) -> str:
+    return "image/jpeg" if b64.startswith("/9j/") else "image/png"
+
+
 def parse_model_list(body, keep=lambda mid: True) -> list[ModelInfo]:
     """Accept every common model-list shape: {"data": [...]}, {"models": [...]}, {"result": [...]}, a bare list;
     entries as strings or objects with id / name / model / slug."""
@@ -108,7 +112,13 @@ class OpenAICompatibleProvider(Provider):
         msgs = []
         if req.system:
             msgs.append({"role": "system", "content": req.system})
-        msgs += [{"role": m.role, "content": m.content} for m in req.messages]
+        for m in req.messages:
+            if m.images:
+                parts = [{"type": "text", "text": m.content}] + [
+                    {"type": "image_url", "image_url": {"url": f"data:{_mime(b)};base64,{b}"}} for b in m.images]
+                msgs.append({"role": m.role, "content": parts})
+            else:
+                msgs.append({"role": m.role, "content": m.content})
         p = {"model": req.model, "messages": msgs, "stream": True,
              "stream_options": {"include_usage": True}, self.token_param: req.max_tokens}
         if include_temperature and req.temperature is not None:

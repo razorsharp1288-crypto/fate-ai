@@ -134,8 +134,14 @@ class ChatPage(QWidget):
         self.agent.activated.connect(self._apply_agent)
         settings = QPushButton("Settings")
         settings.clicked.connect(self.edit_settings)
+        self.speak_btn = QPushButton()
+        self.speak_btn.setIcon(icon("speaker"))
+        self.speak_btn.setCheckable(True)
+        self.speak_btn.setToolTip("Read replies aloud")
+        self.speak_btn.setChecked(self.ctx.settings.settings.voice.speak_replies)
+        self.speak_btn.toggled.connect(self._toggle_speak)
         self.local_badge = Badge("")
-        for w in (self.local_badge, self.provider, self.model, refresh, self.agent, settings):
+        for w in (self.local_badge, self.provider, self.model, refresh, self.agent, self.speak_btn, settings):
             bar.addWidget(w)
         rl.addLayout(bar)
 
@@ -172,12 +178,17 @@ class ChatPage(QWidget):
         self.input.setFixedHeight(76)
         self.input.setStyleSheet("QPlainTextEdit{border:none;background:transparent;}")
         self.input.submit.connect(self.send)
+        from ..components.mic import MicButton
+        self.mic = MicButton(self.ctx)
+        self.mic.status.connect(lambda t: self.status.setText(t))
+        self.mic.transcribed.connect(self._voice_text)
         self.send_btn = QPushButton()
         self.send_btn.setIcon(icon("send", "#FFFFFF"))
         self.send_btn.setObjectName("Primary")
         self.send_btn.setFixedSize(44, 44)
         self.send_btn.clicked.connect(self._send_or_stop)
         bl.addWidget(att, 0, Qt.AlignBottom)
+        bl.addWidget(self.mic, 0, Qt.AlignBottom)
         bl.addWidget(self.input, 1)
         bl.addWidget(self.send_btn, 0, Qt.AlignBottom)
         rl.addWidget(box)
@@ -493,6 +504,10 @@ class ChatPage(QWidget):
         self._render()
 
     def _on_done(self, res):
+        if res.text and self.ctx.settings.settings.voice.speak_replies:
+            from ...voice.speak import speak
+            v = self.ctx.settings.settings.voice
+            speak(res.text, v.voice_name, v.rate)
         tok = "≈" if res.estimated else ""
         ftt = f" · first token {res.first_token_ms} ms" if res.first_token_ms is not None else ""
         cost = self.ctx.pricing.estimate(self.ctx.provider_repo.get(self.provider.currentData())["kind"],
@@ -588,6 +603,18 @@ class ChatPage(QWidget):
             new = self.ctx.conversations.branch(self.conv_id, int(arg))
             self.reload_conversations(new.id)
             self.open_conversation(new.id)
+
+    def _voice_text(self, text: str):
+        cur = self.input.toPlainText().strip()
+        self.input.setPlainText((cur + " " + text).strip() if cur else text)
+        if self.ctx.settings.settings.voice.send_after_speaking and not self.streaming:
+            self.send()
+
+    def _toggle_speak(self, on: bool):
+        self.ctx.settings.update(voice={"speak_replies": on})
+        if not on:
+            from ...voice.speak import stop
+            stop()
 
     def use_prompt(self, text: str):
         self.input.setPlainText(text)

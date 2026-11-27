@@ -224,3 +224,34 @@ def test_command_palette_filters():
     from fate_ai.ui.dialogs.command_palette import _score
     assert _score("bp", "Go to Blueprints") > 0
     assert _score("blue", "Go to Blueprints") > _score("blue", "xyz")
+
+
+def test_pc_control_page_turn_on_and_run(qtbot, uictx, monkeypatch):
+    from fate_ai.ui.pages import computer as cmod
+    monkeypatch.setattr(cmod, "confirm", lambda *a, **k: True)
+    page = cmod.ComputerPage(uictx)
+    qtbot.addWidget(page)
+    page.on_show()
+    assert not page.run_btn.isEnabled()
+    page.turn_on()
+    assert uictx.settings.settings.computer.enabled and page.run_btn.isEnabled()
+    qtbot.waitUntil(lambda: page.model.count() > 0, timeout=5000)
+    page.hide_me.setChecked(False)
+    page.task.setPlainText("say hi")          # fake Ollama echoes text without an action -> finishes
+    page.run()
+    qtbot.waitUntil(lambda: page.cancel is None, timeout=10000)
+    assert "say hi" in page.log.toPlainText()
+    assert page.overlay is None
+
+
+def test_settings_voice_and_power_tabs(qtbot, uictx, monkeypatch):
+    from fate_ai.ui.pages import settings as smod
+    monkeypatch.setattr(smod, "confirm", lambda *a, **k: True)
+    monkeypatch.setattr(smod, "info", lambda *a, **k: None)
+    page = smod.SettingsPage(uictx)
+    qtbot.addWidget(page)
+    page.show_tab("PC Control & Power")
+    page._full_power()
+    c = uictx.settings.settings.computer
+    assert c.enabled and c.approval == "auto_all" and all(getattr(c, k) for k in page.pc_caps)
+    assert uictx.settings.settings.resources.preset == "max"
