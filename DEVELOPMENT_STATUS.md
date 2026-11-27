@@ -1,4 +1,4 @@
-# Development status — FATE AI 0.2.0
+# Development status — FATE AI 0.2.1
 
 Last updated: 2026-11-26. This file is kept honest: nothing is marked complete unless it is implemented, and
 "tested" means an automated test actually ran (environment noted).
@@ -39,9 +39,11 @@ below are implemented but not yet executed. The CI workflow (`.github/workflows/
 | Blueprints: closed-manifold primitive meshes, transforms, sanitising untrusted model output, STL/OBJ export, 7 offline templates, JSON extraction, AI generation via mock provider, persistence/import/export | `tests/unit/test_blueprints.py` |
 | Blueprints, API Keys (paste & detect), command palette UI workflows | `tests/ui/test_ui_workflows.py` |
 | Auto-update: default repository, verified download, Windows-only silent install with `/UPDATE=1` relaunch | `test_hardware_resources_updater.py` (install step runs only on Windows) |
+| Paste-a-key auto-connect: format detection, parallel verification, consent before trying unknown keys elsewhere, default model selection | `tests/integration/test_autodetect.py` |
+| Windows Sandbox backend (.wsb generation, environments) and one-click virtualization setup actions | `tests/virtualization/test_windows_sandbox_and_setup.py` (launch/enable run only on Windows) |
 | PyInstaller spec builds and the frozen app passes `--smoke-test` | run manually on Linux |
 
-Result of the last full run: **131 passed, 0 failed, 0 skipped** (Docker available).
+Result of the last full run: **140 passed, 0 failed, 0 skipped** (Docker available).
 
 ## Implemented, not yet executed (needs Windows / external software)
 - Windows Credential Manager backend (via `keyring`; falls back to session memory with a visible warning).

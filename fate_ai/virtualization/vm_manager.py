@@ -21,7 +21,9 @@ class VMManager:
             storage = settings.vm.default_storage if settings and settings.vm.default_storage else None
             from ..hardware.detection import detect_virtualization
             v = detect_virtualization()
-            backends = [HyperVBackend(storage), VirtualBoxBackend(v.virtualbox_path, storage), WSLBackend(),
+            from .backends.windows_sandbox import WindowsSandboxBackend
+            backends = [WindowsSandboxBackend(), HyperVBackend(storage), VirtualBoxBackend(v.virtualbox_path, storage),
+                        WSLBackend(),
                         ContainerBackend(which("docker"), "docker"), ContainerBackend(which("podman"), "podman")]
         self.backends = {b.name: b for b in backends}
         self._status_cache: dict = {}

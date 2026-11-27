@@ -50,7 +50,7 @@ class CatalogGrid(QWidget):
         self.columns = columns
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        self.search = QLineEdit(placeholderText="Search 30+ AI services… (Gemini, Grok, Mistral, Groq, OpenRouter…)")
+        self.search = QLineEdit(placeholderText="Search 35 AI services… (Gemini, Grok, Mistral, Groq, OpenRouter…)")
         self.search.textChanged.connect(self.rebuild)
         self.cat = QComboBox()
         for c in ("All", "Cloud", "Aggregator", "Local"):

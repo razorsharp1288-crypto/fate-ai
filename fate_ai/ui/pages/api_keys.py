@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import (QGridLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (QComboBox, QGridLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTableWidget,
                                QTableWidgetItem)
 
-from ...ai.providers.catalog import BY_ID, detect_from_key
+from ...ai.providers.autodetect import cloud_candidates, connect, connect_known
+from ...ai.providers.catalog import BY_ID, PRESETS, detect_from_key
 from ..components.widgets import Banner, Card, Page, confirm, error, hbox
 from ..components.worker import run_async
 from ..dialogs.add_provider import CatalogGrid, CustomEndpointDialog, PresetSetupDialog
@@ -12,7 +14,7 @@ from ..dialogs.add_provider import CatalogGrid, CustomEndpointDialog, PresetSetu
 class APIKeysPage(Page):
     def __init__(self, ctx):
         super().__init__("API Keys", "Connect any AI service with your own key — OpenAI, Claude, Gemini, Grok, "
-                                     "Mistral, DeepSeek, Groq, OpenRouter and 25+ more, or any custom endpoint.")
+                                     "Mistral, DeepSeek, Groq, OpenRouter, Inception and 30+ more, or any custom endpoint.")
         self.ctx = ctx
         vault = ctx.credentials.backend
         custom = QPushButton("+ Custom endpoint")
@@ -24,21 +26,55 @@ class APIKeysPage(Page):
             ("" if vault.persistent else " <b>No OS credential vault is available, so keys are forgotten when the "
                                          "app closes.</b>"), warn=not vault.persistent))
 
-        # paste any key
-        paste = Card("Paste any API key", accent=True)
-        hint = QLabel("FATE AI recognises the key format and suggests which service it belongs to.")
+        # paste any key -> detect -> save -> test, nothing else to fill in
+        paste = Card("Paste your API key", accent=True)
+        hint = QLabel("Just paste the key. FATE AI works out which service it belongs to, saves it securely, tests it "
+                      "and picks a model — no URL or settings needed.")
         hint.setObjectName("Muted")
+        hint.setWordWrap(True)
         paste.add(hint)
         self.any_key = QLineEdit()
         self.any_key.setEchoMode(QLineEdit.Password)
-        self.any_key.setPlaceholderText("sk-…, sk-ant-…, AIza…, gsk_…, xai-…, sk-or-…, hf_…")
-        self.any_key.textChanged.connect(self.detect)
-        paste.add(self.any_key)
+        self.any_key.setPlaceholderText("Paste any API key here and press Enter")
+        self.any_key.setMinimumHeight(40)
+        self.any_key.returnPressed.connect(self.connect_key)
+        self.any_key.textChanged.connect(self._key_changed)
+        show = QPushButton("Show")
+        show.setCheckable(True)
+        show.toggled.connect(lambda on: self.any_key.setEchoMode(QLineEdit.Normal if on else QLineEdit.Password))
+        self.connect_btn = QPushButton("Connect")
+        self.connect_btn.setObjectName("Primary")
+        self.connect_btn.setMinimumHeight(40)
+        self.connect_btn.clicked.connect(self.connect_key)
+        paste.add(hbox(self.any_key, show, self.connect_btn))
+        self.key_status = QLabel("")
+        self.key_status.setWordWrap(True)
+        self.key_status.setTextFormat(Qt.RichText)
+        paste.add(self.key_status)
         self.suggest_label = QLabel("")
         self.suggest_label.setObjectName("Dim")
         paste.add(self.suggest_label)
         self.suggest_row = QGridLayout()
         paste.add(self.suggest_row)
+        self.try_all_btn = QPushButton("Find it automatically (tries the key with each known service)")
+        self.try_all_btn.setObjectName("Primary")
+        self.try_all_btn.clicked.connect(lambda: self.connect_key(allow_all=True))
+        self.try_all_btn.hide()
+        self.pick = QComboBox()
+        self.pick.addItem("…or choose the service yourself", None)
+        for pr in PRESETS:
+            if pr.requires_key and not pr.needs_url:
+                self.pick.addItem(pr.name, pr.id)
+        self.pick.activated.connect(self._picked)
+        self.pick.hide()
+        paste.add(hbox(self.try_all_btn, self.pick, None))
+        self.open_chat = QPushButton("Start chatting →")
+        self.open_chat.setObjectName("Primary")
+        self.open_chat.hide()
+        self.open_chat.clicked.connect(self._go_chat)
+        paste.add(hbox(self.open_chat, None))
+        self._debounce = QTimer(self, singleShot=True, interval=700, timeout=self._auto_connect)
+        self._busy = False
         self.body.addWidget(paste)
 
         # your providers
@@ -72,24 +108,120 @@ class APIKeysPage(Page):
         self.body.addStretch(1)
         self.build_rows()
 
-    # -- paste & detect -----------------------------------------------------
-    def detect(self, text: str):
+    # -- paste & connect -----------------------------------------------------
+    def _key_changed(self, text: str):
+        for w in (self.try_all_btn, self.pick, self.open_chat):
+            w.hide()
+        self.suggest_label.setText("")
+        self._clear_suggestions()
+        key = text.strip()
+        if len(key) < 12:
+            self.key_status.setText("")
+            return
+        hits = detect_from_key(key)
+        if len(hits) == 1:
+            self.key_status.setText(f"Looks like a <b>{hits[0].name}</b> key — connecting…")
+            self._debounce.start()  # pasted a recognisable key: connect automatically
+        elif hits:
+            self.key_status.setText("Press <b>Connect</b> — FATE AI will check which of these it belongs to: "
+                                    + ", ".join(h.name for h in hits))
+        else:
+            self.key_status.setText("Press <b>Connect</b> to set it up.")
+
+    def _auto_connect(self):
+        if not self._busy and len(detect_from_key(self.any_key.text().strip())) == 1:
+            self.connect_key()
+
+    def _clear_suggestions(self):
         while self.suggest_row.count():
             w = self.suggest_row.takeAt(0).widget()
             if w:
                 w.deleteLater()
-        key = text.strip()
-        if len(key) < 8:
-            self.suggest_label.setText("")
+
+    def connect_key(self, allow_all: bool = False):
+        key = self.any_key.text().strip()
+        if not key or self._busy:
             return
         hits = detect_from_key(key)
-        self.suggest_label.setText("Looks like:" if hits else "Unknown format — pick the service from the list below, "
-                                                              "or add a custom endpoint.")
-        for i, p in enumerate(hits):
-            b = QPushButton(f"Use as {p.name}")
-            b.setObjectName("Primary" if i == 0 else "")
-            b.clicked.connect(lambda _=False, p=p: self.setup(p, key))
-            self.suggest_row.addWidget(b, 0, i)
+        if not hits and not allow_all:
+            self.key_status.setText("FATE AI doesn't recognise this key's format. Click below to find the service "
+                                    "automatically, or choose it from the list.")
+            self.try_all_btn.show()
+            self.pick.show()
+            return
+        self._busy = True
+        self.connect_btn.setEnabled(False)
+        n = len(hits) if hits else len(cloud_candidates())
+        self.key_status.setText(f"Checking {'your key' if n == 1 else f'{n} services'}…")
+
+        def done(res):
+            self._busy = False
+            self.connect_btn.setEnabled(True)
+            winner, results = res
+            if winner:
+                self._success(winner)
+                return
+            first = results[0].message if results else "no response"
+            if hits and not allow_all:
+                self.key_status.setText(f"✗ {', '.join(h.name for h in hits)} rejected this key ({first}). "
+                                        f"Check it was copied completely, or let FATE AI search other services.")
+                self.try_all_btn.show()
+            else:
+                self.key_status.setText("✗ No known service accepted this key. Check it is active, or add it as a "
+                                        "custom endpoint (top right).")
+            self.pick.show()
+        run_async(lambda: connect(self.ctx, key, allow_all=allow_all), on_done=done,
+                  on_error=lambda e: (setattr(self, "_busy", False), self.connect_btn.setEnabled(True),
+                                      self.key_status.setText(f"✗ {e}")))
+
+    def _success(self, winner):
+        self.any_key.blockSignals(True)
+        self.any_key.clear()
+        self.any_key.blockSignals(False)
+        model = self.ctx.provider_repo.get(winner.preset.id).get("default_model") or "—"
+        self.key_status.setText(f"<span style='color:#34D399'>✓ Connected to <b>{winner.preset.name}</b></span> — "
+                                f"{len(winner.models)} models available. Default model: <b>{model}</b>. "
+                                f"Key saved to {self.ctx.credentials.backend.name}.")
+        self.open_chat.show()
+        self._last_connected = winner.preset.id
+        self.refresh()
+        win = self.window()
+        if hasattr(win, "toast"):
+            win.toast(f"✓ {winner.preset.name} connected")
+
+    def _picked(self, i: int):
+        pid = self.pick.itemData(i)
+        if not pid:
+            return
+        key = self.any_key.text().strip()
+        self.key_status.setText(f"Checking with {BY_ID[pid].name}…")
+
+        def work():
+            from ...ai.providers.autodetect import find_service
+            winner, results = find_service(key, candidates=[BY_ID[pid]])
+            if winner:
+                return connect_known(self.ctx, key, winner)
+            return None, results
+
+        def done(res):
+            winner, results = res
+            if winner:
+                self._success(winner)
+            else:
+                self.key_status.setText(f"✗ {BY_ID[pid].name} rejected the key: "
+                                        f"{results[0].message if results else 'no response'}")
+        run_async(work, on_done=done, on_error=lambda e: self.key_status.setText(f"✗ {e}"))
+
+    def _go_chat(self):
+        win = self.window()
+        if hasattr(win, "navigate"):
+            win.navigate("chat")
+            chat = win.page("chat")
+            if hasattr(chat, "_load_providers"):
+                chat._load_providers()
+                i = chat.provider.findData(getattr(self, "_last_connected", ""))
+                if i >= 0:
+                    chat.provider.setCurrentIndex(i)
 
     def setup(self, preset, prefill: str = ""):
         if PresetSetupDialog(self.ctx, preset, prefill_key=prefill or "", parent=self).exec():

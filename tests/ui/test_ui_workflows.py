@@ -195,13 +195,27 @@ def test_blueprint_ai_generation_via_local_server(qtbot, uictx):
     assert "failed" in page.status.text().lower() and errors
 
 
-def test_api_keys_paste_detect(qtbot, uictx):
+def test_api_keys_paste_autoconnects(qtbot, uictx, monkeypatch):
+    from fate_ai.ai.providers import autodetect
     from fate_ai.ui.pages.api_keys import APIKeysPage
+    calls = []
+
+    def fake_probe(preset, key, transport=None):
+        calls.append(preset.id)
+        return autodetect.ProbeResult(preset, preset.id == "groq", "ok", ["llama-3.3-70b"])
+    monkeypatch.setattr(autodetect, "_probe", fake_probe)
     page = APIKeysPage(uictx)
     qtbot.addWidget(page)
-    page.any_key.setText("gsk_abcdefghijklmnopqrstuvwxyz")
-    assert page.suggest_row.count() == 1
-    assert "Groq" in page.suggest_row.itemAt(0).widget().text()
+    page.any_key.setText("gsk_abcdefghijklmnopqrstuvwxyz")   # just paste — no button press
+    qtbot.waitUntil(lambda: "Connected" in page.key_status.text(), timeout=5000)
+    assert calls == ["groq"]
+    assert uictx.credentials.get_api_key("groq") == "gsk_abcdefghijklmnopqrstuvwxyz"
+    assert uictx.provider_repo.get("groq")["default_model"] == "llama-3.3-70b"
+    assert page.any_key.text() == "" and page.open_chat.isVisibleTo(page)
+    # unknown format asks before trying other services
+    page.any_key.setText("weirdformat123456789")
+    page.connect_key()
+    assert page.try_all_btn.isVisibleTo(page) and len(calls) == 1
     page.catalog.search.setText("gemini")
     assert page.catalog.grid.count() == 1
 

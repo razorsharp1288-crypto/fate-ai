@@ -100,11 +100,15 @@ class CreateVMDialog(QDialog):
             if (kind == "vm" and img is None) or (kind == "container" and img and ":" in img) or \
                     (kind == "wsl" and img and ":" not in img):
                 self.preset.addItem(label, img)
-        is_vm = kind == "vm"
+        is_vm = kind == "vm" and name != "winsandbox"
         for w in (self.os_type, self.iso, self.disk):
             w.setEnabled(is_vm)
         self.dynamic.setEnabled(name == "hyperv")
-        self.cpus.setEnabled(kind != "wsl")
+        self.cpus.setEnabled(kind != "wsl" and name != "winsandbox")
+        if name == "winsandbox":
+            self.preset.clear()
+            self.preset.addItem("Clean Windows desktop (disposable)", None)
+            self.preset.setEditable(False)
         self.ram.setEnabled(kind != "wsl")
 
     def spec(self) -> tuple[str, VMSpec]:
@@ -132,6 +136,19 @@ class VMsPage(Page):
         stop_all.clicked.connect(self.stop_all)
         self.header_actions.addWidget(stop_all)
         self.header_actions.addWidget(new)
+
+        self.setup_card = Card("Set up virtualization", accent=True)
+        sh = QLabel("Pick one to install or enable it with one click. Windows will ask for permission where needed; "
+                    "most options need a restart. Then click Re-detect.")
+        sh.setObjectName("Muted")
+        sh.setWordWrap(True)
+        self.setup_card.add(sh)
+        self.setup_grid = QGridLayout()
+        self.setup_card.add(self.setup_grid)
+        redetect = QPushButton("Re-detect")
+        redetect.clicked.connect(self.redetect)
+        self.setup_card.add(hbox(redetect, None))
+        self.body.addWidget(self.setup_card)
 
         self.backend_card = Card("Virtualization on this PC")
         self.backend_grid = QGridLayout()
@@ -196,7 +213,60 @@ class VMsPage(Page):
         self.timer.stop()
         super().hideEvent(e)
 
+    def redetect(self):
+        self.status.setText("Detecting virtualization…")
+        run_async(lambda: self.ctx.vm_manager.statuses(refresh=True), on_done=self._statuses)
+
+    def _fill_setup(self, statuses):
+        from ...virtualization.setup import ACTIONS, availability, windows_edition
+        while self.setup_grid.count():
+            w = self.setup_grid.takeAt(0).widget()
+            if w:
+                w.deleteLater()
+        edition = windows_edition()
+        for r, a in enumerate(ACTIONS):
+            st = statuses.get(a.backend)
+            name = QLabel(f"<b>{a.name}</b>")
+            desc = QLabel(a.description + ("  (restart needed)" if a.restart else ""))
+            desc.setObjectName("Muted")
+            desc.setWordWrap(True)
+            self.setup_grid.addWidget(name, r, 0)
+            self.setup_grid.addWidget(desc, r, 1)
+            if st is not None and st.available:
+                self.setup_grid.addWidget(Badge("Ready ✓", "ok"), r, 2)
+                continue
+            ok, why = availability(a, edition)
+            if not ok:
+                lab = QLabel(why)
+                lab.setObjectName("Dim")
+                self.setup_grid.addWidget(lab, r, 2)
+                continue
+            b = QPushButton("Enable" if a.elevated else "Install")
+            b.setObjectName("Primary" if r == 0 else "")
+            b.clicked.connect(lambda _=False, a=a: self.run_setup(a))
+            self.setup_grid.addWidget(b, r, 2)
+        self.setup_grid.setColumnStretch(1, 1)
+        self.setup_card.setVisible(any(not (statuses.get(a.backend) and statuses[a.backend].available)
+                                       for a in ACTIONS))
+
+    def run_setup(self, action):
+        from ...virtualization.setup import run
+        msg = (f"Set up {action.name}?\n\n{action.description}\n\n"
+               + ("Windows will ask for administrator permission. " if action.elevated else
+                  "It will be downloaded and installed with winget. ")
+               + ("A restart is needed afterwards." if action.restart else ""))
+        if not confirm(self, f"Set up {action.name}", msg):
+            return
+        try:
+            run(action.id)
+        except Exception as e:
+            error(self, str(e))
+            return
+        self.status.setText(f"{action.name}: setup started in a separate window. When it finishes"
+                            + (" and you have restarted Windows" if action.restart else "") + ", click Re-detect.")
+
     def _statuses(self, statuses):
+        self._fill_setup(statuses)
         while self.backend_card.lay.count() > 2:
             w = self.backend_card.lay.takeAt(2).widget()
             if w:
@@ -221,8 +291,9 @@ class VMsPage(Page):
             r += 2
         self.backend_grid.setColumnStretch(2, 1)
         if not any(s.available for s in statuses.values()):
-            self.status.setText("No virtualization backend is available. Install VirtualBox, Docker Desktop or "
-                                "Podman, enable WSL2 (wsl --install), or enable Hyper-V on Windows Pro.")
+            self.status.setText("Nothing is set up yet — use “Set up virtualization” above (one click each).")
+        else:
+            self.status.setText("")
         self.refresh_vms()
 
     def refresh_vms(self):
